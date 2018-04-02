@@ -98,7 +98,9 @@ class AddressList(MyTreeWidget):
 
                     hd_address = self.wallet.create_new_hd_address(path, False)
                     if address != hd_address:
-                        return self.parent.show_error(_('Wrong address was generated. Check if your masterxpub matches'))
+                        # return self.parent.show_error(_('Wrong address was generated. Check if your masterxpub matches'))
+                        # PATH update fix: just ignore invalid address
+                        continue
 
                     self.wallet.create_new_hd_address(path, True)
                     lastId = addr.get('id', 0)
