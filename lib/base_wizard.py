@@ -226,16 +226,16 @@ class BaseWizard(object):
             self.show_error(str(e))
             self.choose_hw_device()
             return
-        if self.wallet_type=='multisig':
-            # There is no general standard for HD multisig.
-            # This is partially compatible with BIP45; assumes index=0
+        #if self.wallet_type=='multisig':
+        #    # There is no general standard for HD multisig.
+        #    # This is partially compatible with BIP45; assumes index=0
 
-            # JH: Modify HD PATH
-            # self.on_hw_derivation(name, device_info, "m/45'/0")
-            self.on_hw_derivation(name, device_info, "m/44'/1'/0'")
-        else:
-            f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
-            self.derivation_dialog(f)
+        #    # JH: Modify HD PATH
+        #    # self.on_hw_derivation(name, device_info, "m/45'/0")
+        #    self.on_hw_derivation(name, device_info, "m/44'/0'/0'")
+        #else:
+        f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
+        self.derivation_dialog(f)
 
     def derivation_dialog(self, f):
         default = bip44_derivation(0, bip43_purpose=44)
