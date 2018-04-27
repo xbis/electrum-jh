@@ -130,7 +130,12 @@ class WithdrawalsList(MyTreeWidget):
         self.clear()
 
         if self.jh_is_loading:
-            address_item = QTreeWidgetItem(["Loading addresses from Jackhammer", "", "", ""])
+            address_item = QTreeWidgetItem(["Loading withdrawal requests from Cryptagio", "", "", ""])
+            self.addChild(address_item)
+            return
+
+        if self.withdrawals is None:
+            address_item = QTreeWidgetItem(["No new withdrawal requests from Cryptagio", "", "", ""])
             self.addChild(address_item)
             return
 

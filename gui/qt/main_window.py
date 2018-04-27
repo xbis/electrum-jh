@@ -1530,6 +1530,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
             return
         else:
+            if self.wallet.omni:
+                return
             outputs = self.cryptagio.get_outputs(currency_code)
             tx_desc = self.message_e.text()
 

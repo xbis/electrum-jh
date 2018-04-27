@@ -238,7 +238,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         # omni
         if self.wallet.omni:
-            omni_tx_amount_str = self.wallet.omni_getamount(self.tx.raw)
+            omni_tx_amount_str = self.wallet.omni_getamount(str(self.tx.raw))
             omni_amount_str = _("OMNI amount: ") + '%s' % omni_tx_amount_str
             self.omni_amount_label.setText(omni_amount_str)
 

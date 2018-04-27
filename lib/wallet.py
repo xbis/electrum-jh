@@ -728,6 +728,9 @@ class Abstract_Wallet(PrintError):
 
     def omni_getamount(self, rawtx):
 
+        if rawtx is None:
+            return ''
+
         amount = Decimal(0)
         try:
             val = self.omni_daemon.decodeTransaction(rawtx)
