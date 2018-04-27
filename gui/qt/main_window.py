@@ -1992,7 +1992,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def create_withdrawals_tab(self):
         from .withdrawals_list import WithdrawalsList
-        self.withdrawals_list = l = WithdrawalsList(self)
+        self.withdrawals_list = l = WithdrawalsList(self, self.wallet.omni_code if self.wallet.omni else None)
         return self.create_list_tab(l, l.get_list_header())
 
 
