@@ -511,18 +511,23 @@ class Transaction:
         return self.raw
 
     def __init__(self, raw):
+        # xbis update 18/04/19 for correct import of text transactions
         if raw is None:
-            self.raw = None
+            # self.raw = None
+            sraw = None
         elif isinstance(raw, str):
-            self.raw = raw.strip() if raw else None
+            # self.raw = raw.strip() if raw else None
+            sraw = raw.strip() if raw else None
         elif isinstance(raw, dict):
-            self.raw = raw['hex']
+            # self.raw = raw['hex']
+            sraw = raw['hex']
         else:
             raise BaseException("cannot initialize transaction", raw)
-        self._inputs = None
+        # self._inputs = None
         self._outputs = None
         self.locktime = 0
         self.version = 1
+        self.update(sraw)
 
     def update(self, raw):
         self.raw = raw
@@ -839,8 +844,14 @@ class Transaction:
         self._inputs.extend(inputs)
         self.raw = None
 
-    def add_outputs(self, outputs):
-        self._outputs.extend(outputs)
+    def add_outputs(self, outputs, position=None):
+
+        if position is None:
+            self._outputs.extend(outputs)
+        else:
+            for item in outputs:
+                self._outputs.insert(position, item)
+                position += 1
         self.raw = None
 
     def input_value(self):
@@ -928,7 +939,7 @@ class Transaction:
 
     def is_complete(self):
         s, r = self.signature_count()
-        return r == s
+        return r > 0 and r == s
 
     def sign(self, keypairs):
         for i, txin in enumerate(self.inputs()):

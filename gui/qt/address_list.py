@@ -51,12 +51,22 @@ class AddressList(MyTreeWidget):
         self.used_button.currentIndexChanged.connect(self.toggle_used)
         for t in [_('All'), _('Unused'), _('Funded'), _('Used')]:
             self.used_button.addItem(t)
+        self.refresh_button = EnterButton(_("JH Refresh"), self.do_refresh)
+        self.refresh_button.setToolTip(_('Refresh HD wallet balances.'))
+
+        #def on_omni_change(x):
+        #    self.omni = x == Qt.Checked
+
+        #self.omni_cb = QCheckBox(_('OMNI'))
+        #self.omni_cb.setChecked(self.parent.omni_cryptagio)
+        #self.omni_cb.stateChanged.connect(on_omni_change)
+        #self.omni_cb.setToolTip(
+        #    _('Check to filter OMNI addresses'))
+
 
     def get_list_header(self):
-        refresh_button = EnterButton(_("JH Refresh"), self.do_refresh)
-        refresh_button.setToolTip(_('Refresh HD wallet balances.'))
-
-        return QLabel(_("Filter:")), self.change_button, self.used_button, refresh_button
+        #self.omni_cb.setChecked(self.parent.omni_cryptagio)
+        return QLabel(_("Filter:")), self.change_button, self.used_button, self.refresh_button
 
     def do_refresh(self):
         if self.jh_is_loading:
@@ -64,10 +74,12 @@ class AddressList(MyTreeWidget):
             return
 
         self.jh_is_loading = True
-        self.update()
+        # self.update()
+        self.wallet.set_jh_mode()
+        self.wallet.clear_receiving_addresses()
 
         def a():
-            currency = "BTC"
+            currency = self.wallet.omni_code if self.wallet.omni else 'BTC'
             jh_host = self.config.get('jh_host', '').rstrip('/')
             jh_key = self.config.get('jh_key', '')
 
@@ -104,8 +116,10 @@ class AddressList(MyTreeWidget):
 
                     self.wallet.create_new_hd_address(path, True)
                     lastId = addr.get('id', 0)
-                    if lastId == 0:
-                        return
+
+                # addresses not imported => exit
+                if lastId == 0:
+                    break
 
         try:
             a()

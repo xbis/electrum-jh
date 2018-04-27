@@ -2,6 +2,12 @@ import requests
 from electrum.i18n import _
 from decimal import Decimal
 
+# 18/04/24
+# param currency_code added
+
+#CODE_BTC = 'BTC'
+#CODE_OMNI = 'OMNI'
+
 
 class Cryptagio(object):
 
@@ -10,7 +16,7 @@ class Cryptagio(object):
         self.is_loading = False
 
     def set_params(self):
-        self.currency_code = "BTC"
+        #self.currency_code = "BTC"
         self.cryptagio_host = self.parent.config.get('cryptagio_host', '')
         self.cryptagio_host = self.cryptagio_host.rstrip('/')
         self.cryptagio_key = self.parent.config.get('cryptagio_key', '')
@@ -19,11 +25,10 @@ class Cryptagio(object):
         }
 
         self.tx_id = None
-        self.max_fee_amount = None  # TODO: use this some way
+        self.max_fee_amount = Decimal(0.1)  # TODO: use this some way
         self.tx_body_hash = None
-        self.max_fee_amount = None
 
-    def check_for_uncorfimed_tx(self):
+    def check_for_uncorfimed_tx(self, currency_code):
         if self.is_loading:
             return self.parent.show_error(_('Data load is in process. Please wait'))
 
@@ -33,7 +38,7 @@ class Cryptagio(object):
             self.set_params()
             if self.cryptagio_host == '' or self.cryptagio_key == '':
                 return self.parent.show_error(_('Check your Cryptagio preferences'))
-            api_requests_route = self.cryptagio_host + "/wallet/" + self.currency_code + "/transaction"
+            api_requests_route = self.cryptagio_host + "/wallet/" + currency_code + "/transaction"
 
             r = requests.get(api_requests_route, headers=self.headers, params={})
 
@@ -60,7 +65,7 @@ class Cryptagio(object):
 
         return tx_hash, fee, tx_body
 
-    def get_outputs(self):
+    def get_outputs(self, currency_code):
         if self.is_loading:
             return self.parent.show_error(_('Data load is in process. Please wait'))
 
@@ -72,7 +77,7 @@ class Cryptagio(object):
             if self.cryptagio_host == '' or self.cryptagio_key == '':
                 return self.parent.show_error(_('Check your Cryptagio preferences'))
 
-            api_requests_route = self.cryptagio_host + "/wallet/" + self.currency_code + "/request"
+            api_requests_route = self.cryptagio_host + "/wallet/" + currency_code + "/request"
 
             r = requests.get(api_requests_route, headers=self.headers, params={})
 
@@ -114,14 +119,110 @@ class Cryptagio(object):
         self.is_loading = False
         return outputs
 
-    def update_tx(self, tx_id, tx_hash, fee, tx_body, tx_prev_body_hash):
+
+    def get_requests(self, currency_code):
         if self.is_loading:
             return self.parent.show_error(_('Data load is in process. Please wait'))
 
         self.is_loading = True
 
         def make_request():
-            api_tx_route = self.cryptagio_host + "/wallet/" + self.currency_code + "/transaction/" + str(tx_id)
+            requests = []
+            self.set_params()
+            if self.cryptagio_host == '' or self.cryptagio_key == '':
+                return self.parent.show_error(_('Check your Cryptagio preferences'))
+
+            api_requests_route = self.cryptagio_host + "/wallet/" + currency_code + "/omnirequest"
+
+            r = requests.get(api_requests_route, headers=self.headers, params={})
+
+            if r.status_code is not requests.codes.ok:
+                return self.parent.show_error(
+                    _('Bad response from Cryptagio. Code: ') + ("%s" % r.status_code) + r.text)
+
+            response = r.json()
+
+            if not len(response.get('requests', [])):
+                return self.parent.show_message(_('No new withdrawal requests yet'))
+
+            for item in response.get('requests', []):
+                address = item.get('address', '')
+                amount = int(item.get('amount', ''))
+                if address == '' or amount == '':
+                    return self.parent.show_error(_('Bad response from Cryptagio. Address or amount is empty'))
+
+                tx_id = item.get('tx_id', 0)
+                max_fee_amount = Decimal(item.get('max_fee_amount', 0)) * 1000  # in uBTC
+                if not tx_id or not self.max_fee_amount:
+                    return self.parent.show_error(_('No tx_id or max_fee_amount in Cryptagio response'))
+
+                requests.append((address, amount, max_fee_amount, tx_id))
+
+            return requests
+
+        requests = []
+        try:
+            requests = make_request()
+        except Exception as err:
+            print(err)
+            self.parent.show_error(_('Exception during get_outputs request'))
+
+        self.is_loading = False
+        return requests
+
+
+    def get_fund_addresses(self, currency_code):
+        if self.is_loading:
+            return self.parent.show_error(_('Data load is in process. Please wait'))
+
+        self.is_loading = True
+
+        def make_request():
+            addresses = []
+            self.set_params()
+            if self.cryptagio_host == '' or self.cryptagio_key == '':
+                return self.parent.show_error(_('Check your Cryptagio preferences'))
+
+            api_requests_route = self.cryptagio_host + "/fund/addreses/" + currency_code
+
+            r = requests.get(api_requests_route, headers=self.headers, params={})
+            '''
+            if r.status_code is not requests.codes.ok:
+                return self.parent.show_error(
+                    _('Bad response from Cryptagio. Code: ') + ("%s" % r.status_code) + r.text)
+
+            response = r.json()
+            '''
+            response = ["2N8t3moL5wT4By5FBTcyyt5r3zx8MLvmVAr", "2NFy5cHB3VCZLE4JH6fGGUo8k2bHReLQoPY", "2N2wN2f1Gqpk3R4hRkn1kuFXPAg3gohY77B"]
+            '''            
+            if not len(response.get('requests', [])):
+                return self.parent.show_message(_('No new addreses to fund'))
+            '''
+            #for item in response.get('requests', []):
+            for item in response:
+                addresses.append(item)
+
+            return addresses
+
+        outputs = []
+        try:
+            outputs = make_request()
+        except Exception as err:
+            print(err)
+            self.parent.show_error(_('Exception during get_fund_addresses request'))
+
+        self.is_loading = False
+        return outputs
+
+
+    def update_tx(self, tx_id, tx_hash, fee, tx_body, tx_prev_body_hash, currency_code):
+        if self.is_loading:
+            return self.parent.show_error(_('Data load is in process. Please wait'))
+
+        self.is_loading = True
+
+        def make_request():
+            api_tx_route = self.cryptagio_host + "/wallet/" + currency_code + "/transaction/" + str(tx_id)
             r = requests.post(api_tx_route, headers=self.headers, data={
                 'tx_hash': tx_hash,
                 'tx_body': tx_body,
@@ -146,14 +247,14 @@ class Cryptagio(object):
 
         return tx_body_hash
 
-    def approve_tx(self, tx_id, tx_body, tx_prev_body_hash):
+    def approve_tx(self, tx_id, tx_body, tx_prev_body_hash, currency_code):
         if self.is_loading:
             return self.parent.show_error(_('Data load is in process. Please wait'))
 
         self.is_loading = True
 
         def make_request():
-            api_tx_route = self.cryptagio_host + "/wallet/" + self.currency_code + "/transaction/" + str(tx_id)
+            api_tx_route = self.cryptagio_host + "/wallet/" + currency_code + "/transaction/" + str(tx_id)
             r = requests.post(api_tx_route, headers=self.headers, data={
                 'tx_body': tx_body,
                 'tx_prev_body_hash': tx_prev_body_hash,

@@ -39,10 +39,11 @@ from PyQt5.QtWidgets import *
 from electrum.util import bh2u, bfh
 
 from electrum import keystore, simple_config
-from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS, NetworkConstants
+from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS, TYPE_SCRIPT, NetworkConstants
 from electrum.plugins import run_hook
 from electrum.i18n import _
-from electrum.cryptagio import Cryptagio
+import lib.cryptagio as cryptagio
+
 from electrum.util import (format_time, format_satoshis, PrintError,
                            format_satoshis_plain, NotEnoughFunds,
                            UserCancelled, NoDynamicFeeEstimates)
@@ -137,6 +138,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.send_tab = self.create_send_tab()
         self.receive_tab = self.create_receive_tab()
         self.addresses_tab = self.create_addresses_tab()
+        self.withdrawals_tab = self.create_withdrawals_tab()
         self.utxo_tab = self.create_utxo_tab()
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
@@ -153,6 +155,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("&Addresses"), "addresses")
+        add_optional_tab(tabs, self.withdrawals_tab, QIcon(":icons/tab_addresses.png"), _("&Withdrawals"), "withdrawals")
         add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
         add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
@@ -183,7 +186,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.notify_transactions_signal.connect(self.notify_transactions)
         self.history_list.setFocus(True)
 
-        self.cryptagio = Cryptagio(self)
+        self.cryptagio = cryptagio.Cryptagio(self)
 
         # network callbacks
         if self.network:
@@ -505,6 +508,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
+        add_toggle_action(view_menu, self.withdrawals_tab)
         add_toggle_action(view_menu, self.utxo_tab)
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
@@ -727,6 +731,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     text += " [%s unconfirmed]" % (self.format_amount(u, True).strip())
                 if x:
                     text += " [%s unmatured]" % (self.format_amount(x, True).strip())
+                if self.wallet.omni_balance:
+                    omni_amount = self.wallet.omni_getbalance()
+                    text += " [%s]" % (omni_amount)
 
                 # append fiat balance and price
                 if self.fx.is_enabled():
@@ -753,6 +760,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.history_list.update()
         self.request_list.update()
         self.address_list.update()
+        self.withdrawals_list.update()
         self.utxo_list.update()
         self.contact_list.update()
         self.invoice_list.update()
@@ -769,9 +777,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = address_dialog.AddressDialog(self, addr)
         d.exec_()
 
-    def show_transaction(self, tx, tx_desc=None, cryptagio_tx_id=None, cryptagio_tx_hash=None):
+    def show_transaction(self, tx, tx_desc=None, cryptagio_tx_id=None, cryptagio_tx_hash=None, currency_code=None):
         '''tx_desc is set only for txs created in the Send tab'''
-        show_transaction(tx, self, tx_desc, cryptagio_tx_id=cryptagio_tx_id, cryptagio_tx_hash=cryptagio_tx_hash)
+        if currency_code is None:
+            currency_code = self.wallet.omni_code if self.wallet.omni else 'BTC'
+        show_transaction(tx, self, tx_desc, cryptagio_tx_id=cryptagio_tx_id, cryptagio_tx_hash=cryptagio_tx_hash, currency_code=currency_code)
 
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -1183,13 +1193,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
         self.cryptagio_button = EnterButton(_("Cryptagio Withdraw"), self.do_cryptagio)
+        #self.fund_button = EnterButton(_("Cryptagio Fund"), self.do_fund)
+
+        #def on_omni_change(x):
+        #    self.omni_cryptagio = x == Qt.Checked
+
+        #self.omni_cb = QCheckBox(_('OMNI'))
+        #self.omni_cb.setChecked(False)
+        #self.omni_cb.stateChanged.connect(on_omni_change)
+        #self.omni_cb.setToolTip(
+        #    _('Check to query OMNI withdrawals from Cryptagio'))
+
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
         buttons.addWidget(self.clear_button)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.send_button)
+        #buttons.addWidget(self.omni_cb)
         buttons.addWidget(self.cryptagio_button)
+        #buttons.addWidget(self.fund_button)
         grid.addLayout(buttons, 6, 1, 1, 3)
 
         self.amount_e.shortcut.connect(self.spend_max)
@@ -1492,7 +1515,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_cryptagio(self):
         if run_hook('abort_send', self):
             return
-        tx_hash, fee, tx_body = self.cryptagio.check_for_uncorfimed_tx()
+        currency_code = self.wallet.omni_code if self.wallet.omni else "BTC"
+        tx_hash, fee, tx_body = self.cryptagio.check_for_uncorfimed_tx(currency_code)
 
         tx_desc = self.message_e.text()
 
@@ -1506,7 +1530,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
             return
         else:
-            outputs = self.cryptagio.get_outputs()
+            outputs = self.cryptagio.get_outputs(currency_code)
             tx_desc = self.message_e.text()
 
             if self.payto_e.is_alias and self.payto_e.validated is False:
@@ -1533,6 +1557,44 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             fee_estimator = self.get_send_fee_estimator()
             coins = self.get_coins()
+
+            # omni
+            if self.omni_cryptagio:
+                # update outputs
+                try:
+                    omni_address = outputs[0][1]    # address
+                    omni_amount = outputs[0][2]  # amount
+                    payload = self.wallet.omni_daemon.getSimplesendPayload(self.wallet.omni_property, str(omni_amount))
+                    if payload['error']:
+                        self.show_error(_('Error building payload: ' + payload['error']))
+                        return
+
+                    hex_tx = ""
+                    for inp in coins:
+                        omni_tx = self.wallet.omni_daemon.createRawTxInput(inp['prevout_hash'], inp['prevout_n'], hex_tx)
+                        if omni_tx['error']:
+                            self.show_error(_('Error building output OP_RETURN: ' + omni_tx['error']))
+                            return
+                        hex_tx = omni_tx['result']
+
+                    omni_tx = self.wallet.omni_daemon.createRawTxOpReturn(payload['result'], hex_tx)
+                    if omni_tx['error']:
+                        self.show_error(_('Error building output OP_RETURN: ' + omni_tx['error']))
+                        return
+                    hex_tx = omni_tx['result']
+                    omni_tx = self.wallet.omni_daemon.createRawTxReference(omni_address, hex_tx)
+                    if omni_tx['error']:
+                        self.show_error(_('Error building output OP_RETURN: ' + omni_tx['error']))
+                        return
+                    hex_tx = omni_tx['result']
+                except Exception as e:
+                    self.show_error(_('Error building OMNI tx: ' + str(e)))
+                    return
+                # substitute original outputs from JH
+                outputs = self.get_outputs_from_rawtx(hex_tx)
+                if not outputs:
+                    self.show_error(_('Error parsing OMNI tx'))
+                    return
 
             max_fee_satoshi = int(self.cryptagio.max_fee_amount * pow(10, 8))
             while (not fee) or (fee > max_fee_satoshi):
@@ -1562,7 +1624,155 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
                 return
 
-            self.show_transaction(tx, tx_desc, self.cryptagio.tx_id, self.cryptagio.tx_body_hash) #tx_hash
+            self.show_transaction(tx, tx_desc, self.cryptagio.tx_id, self.cryptagio.tx_body_hash, self.wallet.omni_code) #tx_hash
+
+    def build_tx(self, addr, amount, max_fee, tx_id):
+
+        if addr is None:
+            self.show_error(_('Bitcoin Address is None'))
+            return
+        if not bitcoin.is_address(addr):
+            self.show_error(_('Invalid Bitcoin Address'))
+            return
+        if amount is None:
+            self.show_error(_('Invalid Amount'))
+            return
+
+        self.cryptagio.set_params()
+
+        fee_estimator = self.get_send_fee_estimator()
+        coins = self.get_coins()
+
+        try:
+            omni_address = addr
+            omni_amount = amount  # amount
+            payload = self.wallet.omni_daemon.getSimplesendPayload(self.wallet.omni_property, str(omni_amount))
+            if payload['error']:
+                self.show_error(_('Error building payload: ' + payload['error']))
+                return
+
+            hex_tx = ""
+            for inp in coins:
+                omni_tx = self.wallet.omni_daemon.createRawTxInput(inp['prevout_hash'], inp['prevout_n'], hex_tx)
+                if omni_tx['error']:
+                    self.show_error(_('Error building input: ' + omni_tx['error']))
+                    return
+                hex_tx = omni_tx['result']
+
+            omni_tx = self.wallet.omni_daemon.createRawTxOpReturn(payload['result'], hex_tx)
+            if omni_tx['error']:
+                self.show_error(_('Error building output OP_RETURN: ' + omni_tx['error']))
+                return
+            hex_tx = omni_tx['result']
+            omni_tx = self.wallet.omni_daemon.createRawTxReference(omni_address, hex_tx)
+            if omni_tx['error']:
+                self.show_error(_('Error building output Reference: ' + omni_tx['error']))
+                return
+            hex_tx = omni_tx['result']
+        except Exception as e:
+            self.show_error(_('Error building OMNI tx: ' + str(e)))
+            return
+        # substitute original outputs from JH
+        outputs = self.get_outputs_from_rawtx(hex_tx)
+        if not outputs:
+            self.show_error(_('Error parsing OMNI tx'))
+            return
+
+        max_fee_satoshi = int(Decimal(max_fee) * pow(10, 8))
+        fee = None
+        while (not fee) or (fee > max_fee_satoshi):
+            is_sweep = bool(self.tx_external_keypairs)
+            # fee_estimator = None
+            if fee and fee > max_fee_satoshi:
+                fee_estimator = max_fee_satoshi
+            try:
+                tx = self.wallet.make_unsigned_transaction(
+                    coins, outputs, self.config, fixed_fee=fee_estimator, is_sweep=is_sweep)
+            except NotEnoughFunds:
+                self.show_message(_("Insufficient funds"))
+                return
+            except BaseException as e:
+                traceback.print_exc(file=sys.stdout)
+                self.show_message(str(e))
+                return
+            fee = tx.get_fee()
+
+        #amount = tx.output_value() if self.is_max else sum(map(lambda x: x[2], outputs))
+
+        use_rbf = self.config.get('use_rbf', True)
+        if use_rbf:
+            tx.set_rbf(True)
+
+        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000:
+            self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
+            return
+
+        self.show_transaction(tx, tx_id, tx_id, None, self.wallet.omni_code)  # tx_hash
+
+    '''
+    def do_fund(self):
+        if run_hook('abort_send', self):
+            return
+        if not self.omni_cryptagio:
+            self.show_critical(_("Fund allowed for OMNI mode only"))
+            return
+        if self.is_max:
+            self.show_critical(_("Could not fund accounts with MAX amount"))
+            return
+
+        amount = self.amount_e.get_amount()
+        if amount is None:
+            self.show_critical(_("Amount value is empty or invalid"))
+            return
+
+        currency_code = cryptagio.CODE_OMNI
+        fund_addresses = self.cryptagio.get_fund_addresses(currency_code)
+        tx_desc = self.message_e.text()
+
+        outputs = []
+        for addr in fund_addresses:
+            if addr is None:
+                self.show_error(_('Fund Address is None'))
+                return
+            if not bitcoin.is_address(addr):
+                self.show_error(_('Invalid Fund Address'))
+                return
+            outputs.append((TYPE_ADDRESS, addr, amount))
+
+        fee = None
+        fee_estimator = self.get_send_fee_estimator()
+        coins = self.get_coins()
+
+        max_fee_satoshi = int(self.cryptagio.max_fee_amount * pow(10, 8))
+        while (not fee) or (fee > max_fee_satoshi):
+
+            if fee and fee > max_fee_satoshi:
+                fee_estimator = max_fee_satoshi
+            try:
+                tx = self.wallet.make_unsigned_transaction(
+                    coins, outputs, self.config, fixed_fee=fee_estimator)
+            except NotEnoughFunds:
+                self.show_message(_("Insufficient funds"))
+                return
+            except BaseException as e:
+                    traceback.print_exc(file=sys.stdout)
+                    self.show_message(str(e))
+                    return
+
+            fee = tx.get_fee()
+
+        amount = tx.output_value() if self.is_max else sum(map(lambda x: x[2], outputs))
+
+        use_rbf = self.config.get('use_rbf', True)
+        if use_rbf:
+            tx.set_rbf(True)
+
+        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000 :
+            self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
+            return
+
+        self.show_transaction(tx, tx_desc, self.cryptagio.tx_id, self.cryptagio.tx_body_hash) #tx_hash
+    '''
 
     def do_send(self, preview=False):
         if run_hook('abort_send', self):
@@ -1838,6 +2048,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from .address_list import AddressList
         self.address_list = l = AddressList(self)
         return self.create_list_tab(l, l.get_list_header())
+
+    def create_withdrawals_tab(self):
+        from .withdrawals_list import WithdrawalsList
+        self.withdrawals_list = l = WithdrawalsList(self)
+        return self.create_list_tab(l, l.get_list_header())
+
 
     def create_utxo_tab(self):
         from .utxo_list import UTXOList
@@ -2387,11 +2603,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not text:
             return
         try:
-            tx = self.tx_from_text(text)
-            if tx:
+            coins = self.get_coins()
+            outputs = self.get_outputs_from_rawtx(text)
+            if outputs:
+                tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config)
                 self.show_transaction(tx)
+            else:
+                self.show_critical(_("Error in getting outputs from text"))
         except SerializationError as e:
             self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+        except Exception as e:
+            self.show_critical(_("Exception:") + "\n" + str(e))
 
     def do_process_from_file(self):
         from electrum.transaction import SerializationError
@@ -2730,6 +2952,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tx_widgets = []
         id_widgets = []
         cryptagio_widgets = []
+        omni_widgets = []
 
         # language
         lang_help = _('Select which language is used in the GUI (after restart).')
@@ -2944,8 +3167,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((qr_label, qr_combo))
 
         usechange_cb = QCheckBox(_('Use change addresses'))
-        usechange_cb.setChecked(self.wallet.use_change)
-        if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
+        usechange_cb.setChecked(False if self.wallet.omni else self.wallet.use_change)
+        # omni
+        if not self.config.is_modifiable('use_change') or self.wallet.omni: usechange_cb.setEnabled(False)
 
         def on_usechange(x):
             usechange_result = x == Qt.Checked
@@ -2967,13 +3191,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         multiple_change = self.wallet.multiple_change
         multiple_cb = QCheckBox(_('Use multiple change addresses'))
-        multiple_cb.setEnabled(self.wallet.use_change)
+        multiple_cb.setChecked(False if self.wallet.omni else multiple_change)
+        multiple_cb.setEnabled(False if self.wallet.omni else self.wallet.use_change)
         multiple_cb.setToolTip('\n'.join([
             _('In some cases, use up to 3 change addresses in order to break '
               'up large coin amounts and obfuscate the recipient address.'),
             _('This may result in higher transactions fees.')
         ]))
-        multiple_cb.setChecked(multiple_change)
         multiple_cb.stateChanged.connect(on_multiple)
         tx_widgets.append((multiple_cb, None))
 
@@ -3138,6 +3362,76 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         cryptagio_key_e.editingFinished.connect(on_cryptagio_key_edit)
         cryptagio_widgets.append((cryptagio_key_label, cryptagio_key_e))
 
+        # omni_widgets
+        omni_path_label = HelpLabel(_('Master Path') + ':',
+                                        _('HD Path Extension for withdraw Master key'))
+        omni_path_e = QLineEdit(self.wallet.storage.get('omni_path', '0:0:0'))
+
+        def on_path_edit():
+            #self.config.set_key('omni_property', str(omni_property_e.text()), True)
+            self.wallet.storage.put('omni_path', str(omni_path_e.text()))
+            self.wallet.omni_path = str(omni_path_e.text())
+
+        omni_path_e.editingFinished.connect(on_path_edit)
+        omni_widgets.append((omni_path_label, omni_path_e))
+
+        omni_address_label = HelpLabel(_('Master Address') + ':',
+                                        _('HD Address according to path'))
+        omni_address_e = QLineEdit(self.wallet.storage.get('omni_address', ''))
+        # omni_address_e.setEnabled(False)
+        omni_widgets.append((omni_address_label, omni_address_e))
+
+
+        omni_host_label = HelpLabel(_('Daemon Url') + ':', _('Address and credentials of OMNI node\n' +
+                                                                  'format: \n' +
+                                                                  'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}/'))
+        omni_host_e = QLineEdit(self.config.get('omni_host', 'http://admin1:123@127.0.0.1:19401/'))
+        omni_host_e.setFixedWidth(300)
+
+        def on_omni_host_edit():
+            self.wallet.omni_sethost(str(omni_host_e.text()))
+
+        omni_host_e.editingFinished.connect(on_omni_host_edit)
+        omni_widgets.append((omni_host_label, omni_host_e))
+
+        omni_property_label = HelpLabel(_('Property ID') + ':',
+                                        _('List of registered OMNI Property IDs:' + '\n' +
+                                          'https://omniexplorer.info/search/1'))
+        omni_property_e = QLineEdit(self.wallet.storage.get('omni_property', '1'))
+
+        def on_property_edit():
+            #self.config.set_key('omni_property', str(omni_property_e.text()), True)
+            self.wallet.storage.put('omni_property', str(omni_property_e.text()))
+            self.wallet.omni_property = str(omni_property_e.text())
+
+        omni_property_e.editingFinished.connect(on_property_edit)
+        omni_widgets.append((omni_property_label, omni_property_e))
+
+        omni_code_label = HelpLabel(_('Currency code') + ':',
+                                        _('Currency code for Cryptagio requests'))
+        omni_code_e = QLineEdit(self.wallet.storage.get('omni_code', 'OMNI'))
+
+        def on_code_edit():
+            #self.config.set_key('omni_property', str(omni_property_e.text()), True)
+            self.wallet.storage.put('omni_code', str(omni_code_e.text()))
+            self.wallet.omni_code = str(omni_code_e.text())
+
+        omni_code_e.editingFinished.connect(on_code_edit)
+        omni_widgets.append((omni_code_label, omni_code_e))
+
+        def on_showbalance(x):
+            showbalance_result = x == Qt.Checked
+            if self.wallet.omni_balance != showbalance_result:
+                self.wallet.omni_balance = showbalance_result
+                self.wallet.storage.put('omni_balance', self.wallet.omni_balance)
+
+        omni_balance_cb = QCheckBox(_('Show balance'))
+        omni_balance_cb.setChecked(self.wallet.omni_balance)
+        omni_balance_cb.stateChanged.connect(on_showbalance)
+        omni_balance_cb.setToolTip(
+            _('Check to display OMNI balance '))
+        omni_widgets.append((omni_balance_cb, None))
+
         tabs_info = [
             (fee_widgets, _('Fees')),
             (tx_widgets, _('Transactions')),
@@ -3145,6 +3439,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             (fiat_widgets, _('Fiat')),
             (id_widgets, _('Identity')),
             (cryptagio_widgets, _('Cryptagio')),
+            (omni_widgets, _('OMNI')),
         ]
         for widgets, name in tabs_info:
             tab = QWidget()
@@ -3359,3 +3654,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if is_final:
             new_tx.set_rbf(False)
         self.show_transaction(new_tx, tx_label)
+
+    # omni
+    def get_outputs_from_rawtx(self, rawtx):
+        outputs = []
+        tx = self.tx_from_text(rawtx)
+        if tx:
+            outs = tx.get_outputs()
+            for out in outs:
+                if out[0] is None:
+                    continue
+                if out[0].find('SCRIPT ') >= 0:
+                    data = out[0].replace('SCRIPT ', '')
+                    atype = TYPE_SCRIPT
+                else:
+                    data = out[0]
+                    atype = TYPE_ADDRESS
+                outputs.append((atype, data, out[1]))
+        return outputs
