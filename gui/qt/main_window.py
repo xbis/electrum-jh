@@ -1715,71 +1715,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.show_transaction(tx, tx_id, tx_id, None, self.wallet.omni_code)  # tx_hash
 
-    '''
-    def do_fund(self):
-        if run_hook('abort_send', self):
-            return
-        if not self.omni_cryptagio:
-            self.show_critical(_("Fund allowed for OMNI mode only"))
-            return
-        if self.is_max:
-            self.show_critical(_("Could not fund accounts with MAX amount"))
-            return
-
-        amount = self.amount_e.get_amount()
-        if amount is None:
-            self.show_critical(_("Amount value is empty or invalid"))
-            return
-
-        currency_code = cryptagio.CODE_OMNI
-        fund_addresses = self.cryptagio.get_fund_addresses(currency_code)
-        tx_desc = self.message_e.text()
-
-        outputs = []
-        for addr in fund_addresses:
-            if addr is None:
-                self.show_error(_('Fund Address is None'))
-                return
-            if not bitcoin.is_address(addr):
-                self.show_error(_('Invalid Fund Address'))
-                return
-            outputs.append((TYPE_ADDRESS, addr, amount))
-
-        fee = None
-        fee_estimator = self.get_send_fee_estimator()
-        coins = self.get_coins()
-
-        max_fee_satoshi = int(self.cryptagio.max_fee_amount * pow(10, 8))
-        while (not fee) or (fee > max_fee_satoshi):
-
-            if fee and fee > max_fee_satoshi:
-                fee_estimator = max_fee_satoshi
-            try:
-                tx = self.wallet.make_unsigned_transaction(
-                    coins, outputs, self.config, fixed_fee=fee_estimator)
-            except NotEnoughFunds:
-                self.show_message(_("Insufficient funds"))
-                return
-            except BaseException as e:
-                    traceback.print_exc(file=sys.stdout)
-                    self.show_message(str(e))
-                    return
-
-            fee = tx.get_fee()
-
-        amount = tx.output_value() if self.is_max else sum(map(lambda x: x[2], outputs))
-
-        use_rbf = self.config.get('use_rbf', True)
-        if use_rbf:
-            tx.set_rbf(True)
-
-        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000 :
-            self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
-            return
-
-        self.show_transaction(tx, tx_desc, self.cryptagio.tx_id, self.cryptagio.tx_body_hash) #tx_hash
-    '''
-
     def do_send(self, preview=False):
         if run_hook('abort_send', self):
             return
@@ -3391,7 +3326,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         omni_host_label = HelpLabel(_('Daemon Url') + ':', _('Address and credentials of OMNI node\n' +
                                                                   'format: \n' +
                                                                   'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}/'))
-        omni_host_e = QLineEdit(self.config.get('omni_host', 'http://admin1:123@127.0.0.1:19401/'))
+        omni_host_e = QLineEdit(self.wallet.storage.get('omni_host', 'http://admin1:123@127.0.0.1:19401/'))
         omni_host_e.setFixedWidth(300)
 
         def on_omni_host_edit():
