@@ -124,6 +124,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tx_notifications = []
         self.tl_windows = []
         self.tx_external_keypairs = {}
+        #self.load_wallet(wallet)
+        self.wallet = wallet
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -340,7 +342,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def load_wallet(self, wallet):
         wallet.thread = TaskThread(self, self.on_error)
-        self.wallet = wallet
+        if self.wallet != wallet:
+            self.wallet = wallet
         self.update_recently_visited(wallet.storage.path)
         # address used to create a dummy transaction and estimate transaction fee
         self.history_list.update()
@@ -1992,7 +1995,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def create_withdrawals_tab(self):
         from .withdrawals_list import WithdrawalsList
-        self.withdrawals_list = l = WithdrawalsList(self, self.wallet.omni_code if self.wallet.omni else None)
+        self.withdrawals_list = l = WithdrawalsList(self, currency_code=self.wallet.omni_code if self.wallet.omni else None)
         return self.create_list_tab(l, l.get_list_header())
 
 
