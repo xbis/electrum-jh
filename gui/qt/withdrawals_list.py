@@ -64,6 +64,20 @@ class WithdrawalsList(MyTreeWidget):
         self.jh_is_loading = True
         # self.update()
 
+        tx_hash, fee, tx_body = self.parent.cryptagio.check_for_uncorfimed_tx(self.currency)
+
+        if not tx_hash is None or not fee is None or not tx_body is None:
+            from electrum.transaction import SerializationError
+            try:
+                tx = self.parent.tx_from_text(tx_body)
+                if tx:
+                    self.parent.show_transaction(tx, '', self.parent.cryptagio.tx_id, self.parent.cryptagio.tx_body_hash)
+            except SerializationError as e:
+                self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+
+            self.jh_is_loading = False
+            return
+
         def amount_format(amount):
             # DECIMAL_PRECISION = 8
             REQUIRED_LEN = 9  # 1 + 8
@@ -148,7 +162,7 @@ class WithdrawalsList(MyTreeWidget):
             wr_item = QTreeWidgetItem([addr, amount, max_fee, tx_id])
             #wr_item.setTextAlignment(3, Qt.AlignRight)
             #wr_item.setFont(0, QFont(MONOSPACE_FONT))
-            #wr_item.setData(0, Qt.UserRole, addr)
+            wr_item.setData(0, Qt.UserRole, addr)
             #wr_item.setData(0, Qt.UserRole + 1, True)  # label can be edited
             self.addChild(wr_item)
             if addr == current_addr:

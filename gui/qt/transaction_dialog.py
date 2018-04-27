@@ -177,7 +177,11 @@ class TxDialog(QDialog, MessageBoxMixin):
                                                                                   tx_hash, fee, self.tx,
                                                                                   self.cryptagio_tx_hash,
                                                                                   self.currency_code)
+                self.main_window.withdrawals_list.withdrawals[:] = []
+                self.main_window.update_tabs()
+
             self.main_window.pop_top_level_window(self)
+            #self.main_window.up
 
         self.sign_button.setDisabled(True)
         self.main_window.push_top_level_window(self)

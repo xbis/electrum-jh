@@ -1515,8 +1515,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_cryptagio(self):
         if run_hook('abort_send', self):
             return
-        currency_code = self.wallet.omni_code if self.wallet.omni else "BTC"
-        tx_hash, fee, tx_body = self.cryptagio.check_for_uncorfimed_tx(currency_code)
+        if self.wallet.omni:
+            self.show_error(_('Unavailable for OMNI wallet' + '\n' +
+                              'Use Withdrawals tab'))
+            return
+
+        #currency_code = self.wallet.omni_code if self.wallet.omni else "BTC"
+        currency_code = "BTC"
+        tx_hash, fee, tx_body = self.cryptagio.check_for_uncorfimed_tx("BTC")
 
         tx_desc = self.message_e.text()
 
@@ -1530,8 +1536,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
             return
         else:
-            if self.wallet.omni:
-                return
             outputs = self.cryptagio.get_outputs(currency_code)
             tx_desc = self.message_e.text()
 
