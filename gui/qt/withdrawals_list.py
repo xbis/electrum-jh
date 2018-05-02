@@ -88,6 +88,7 @@ class WithdrawalsList(MyTreeWidget):
             return fs
 
         def get_withdrawals(currency_code):
+            INVALID_VALUE = -1
             withdrawals = []
             cryptagio_host = self.config.get('cryptagio_host', '').rstrip('/')
             cryptagio_key = self.config.get('cryptagio_key', '')
@@ -98,32 +99,38 @@ class WithdrawalsList(MyTreeWidget):
 
             api_route = cryptagio_host + "/wallet/" + currency_code + "/omnirequest"
             if cryptagio_host == '' or cryptagio_key == '':
-                return self.parent.show_error(_('Check your Cryptagio preferences'))
+                self.parent.show_error(_('Check your Cryptagio preferences'))
+                return []
 
             r = requests.get(api_route, headers=headers)
             if r.status_code is not requests.codes.ok:
-                return self.parent.show_error(_('Bad response from Cryptagio. Code: ') + ("%s" % r.status_code) + r.text)
+                self.parent.show_error(_('Bad response from Cryptagio. Code: ') + ("%s" % r.status_code) + r.text)
+                return []
 
             response = r.json()
             if response is None or not len(response):
-                return
+                self.parent.show_message(_('No new withdrawal requests yet'))
+                return []
 
             if not len(response.get('requests', [])):
-                return self.parent.show_message(_('No new withdrawal requests yet'))
+                self.parent.show_message(_('No new withdrawal requests yet'))
+                return []
 
             for item in response.get('requests', []):
                 address = item.get('address', '')
                 # amount = Decimal(item.get('amount', '')) * Decimal(1e-8)
                 amount = amount_format(item.get('amount', 0))
                 if address == '' or amount == '':
-                    return self.parent.show_error(_('Bad response from Cryptagio. Address or amount is empty'))
+                    self.parent.show_error(_('Bad response from Cryptagio. Address or amount is empty'))
+                    return []
 
-                tx_id = item.get('tx_id', 0)
-                max_fee_amount = Decimal(item.get('max_fee_amount', 0))   # in BTC (!!!)
-                if not tx_id or not max_fee_amount:
-                    return self.parent.show_error(_('No tx_id or max_fee_amount in Cryptagio response'))
+                tx_id = item.get('tx_id', INVALID_VALUE)
+                max_fee_amount = item.get('max_fee_amount', INVALID_VALUE)   # in BTC (!!!)
+                if tx_id == INVALID_VALUE or max_fee_amount == INVALID_VALUE:
+                    self.parent.show_error(_('No tx_id or max_fee_amount in Cryptagio response'))
+                    return []
 
-                withdrawals.append((address, amount, max_fee_amount, tx_id))
+                withdrawals.append((address, amount, Decimal(max_fee_amount), tx_id))
 
             return withdrawals
 
