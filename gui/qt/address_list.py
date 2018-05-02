@@ -25,13 +25,12 @@
 import webbrowser
 
 import requests
-from electrum.bitcoin import is_address
 from electrum.i18n import _
 from electrum.plugins import run_hook
 from electrum.util import block_explorer_URL
 
 from .util import *
-
+from lib.bitcoin import (TYPE_ADDRESS, is_address)
 
 class AddressList(MyTreeWidget):
     filter_columns = [0, 1, 2]  # Address, Label, Balance
@@ -52,7 +51,7 @@ class AddressList(MyTreeWidget):
         for t in [_('All'), _('Unused'), _('Funded'), _('Used')]:
             self.used_button.addItem(t)
         self.refresh_button = EnterButton(_("JH Refresh"), self.do_refresh)
-        self.refresh_button.setToolTip(_('Refresh HD wallet balances.'))
+        self.refresh_button.setToolTip(_('Refresh HD wallet balances'))
 
         #def on_omni_change(x):
         #    self.omni = x == Qt.Checked
@@ -75,8 +74,8 @@ class AddressList(MyTreeWidget):
 
         self.jh_is_loading = True
         # self.update()
-        self.wallet.set_jh_mode()
-        self.wallet.clear_receiving_addresses()
+        # self.wallet.set_jh_mode()
+        # self.wallet.clear_receiving_addresses()
 
         def a():
             currency = self.wallet.omni_code if self.wallet.omni else 'BTC'

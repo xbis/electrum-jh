@@ -711,11 +711,7 @@ class Abstract_Wallet(PrintError):
             name = "token_%d" % property_id
         return name
 
-    def omni_getbalance(self, domain=None):
-        if domain is None:
-            domain = self.get_addresses()
-
-        name = self.omni_getname(int(self.omni_property))
+    def omni_addr_balance(self, domain):
         total = Decimal(0)
         for addr in domain:
             try:
@@ -724,16 +720,29 @@ class Abstract_Wallet(PrintError):
                 total += Decimal(res['balance'])
             except:
                 pass
+        return total
+
+
+    def omni_getbalance(self, domain=None):
+        if domain is None:
+            domain = self.get_addresses()
+
+        name = self.omni_getname(int(self.omni_property))
+        total = self.omni_addr_balance(domain)
         return str(total) + " " + name
 
     def omni_getamount(self, rawtx):
 
         if rawtx is None:
+            self.parent.show_error(_('Error decoding OMNI amount. RawTx is empty'))
             return ''
 
         amount = Decimal(0)
         try:
             val = self.omni_daemon.decodeTransaction(rawtx)
+            if val['error']:
+                self.parent.show_error(_('Error decoding OMNI amount: ' + val['error']))
+
             res = val['result']
             amount = Decimal(res['amount'])
             name = self.omni_getname(res['propertyid'])

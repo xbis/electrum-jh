@@ -1635,8 +1635,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             self.show_transaction(tx, tx_desc, self.cryptagio.tx_id, self.cryptagio.tx_body_hash, self.wallet.omni_code) #tx_hash
 
-    def build_tx(self, addr, amount, max_fee, tx_id):
-
+    def get_tx(self, addr, amount, max_fee):
         if addr is None:
             self.show_error(_('Bitcoin Address is None'))
             return
@@ -1646,8 +1645,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if amount is None:
             self.show_error(_('Invalid Amount'))
             return
-
-        self.cryptagio.set_params()
 
         fee_estimator = self.get_send_fee_estimator()
         coins = self.get_coins()
@@ -1716,6 +1713,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
             return
 
+        return tx, fee
+
+    def build_tx(self, addr, amount, max_fee, tx_id):
+
+        self.cryptagio.set_params()
+        tx, fee = self.get_tx(addr, amount, max_fee)
         self.show_transaction(tx, tx_id, tx_id, None, self.wallet.omni_code)  # tx_hash
 
     def do_send(self, preview=False):
