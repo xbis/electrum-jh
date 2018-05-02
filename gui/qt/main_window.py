@@ -1689,10 +1689,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         max_fee_satoshi = int(Decimal(max_fee) * pow(10, 8))
         fee = None
-        while (not fee) or (fee > max_fee_satoshi):
+        while (not fee) or (max_fee_satoshi and fee > max_fee_satoshi):
             is_sweep = bool(self.tx_external_keypairs)
             # fee_estimator = None
-            if fee and fee > max_fee_satoshi:
+            if fee and max_fee_satoshi and fee > max_fee_satoshi:
                 fee_estimator = max_fee_satoshi
             try:
                 tx = self.wallet.make_unsigned_transaction(
