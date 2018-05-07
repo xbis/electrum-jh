@@ -11,9 +11,13 @@ from decimal import Decimal
 
 class Cryptagio(object):
 
+    MAX_FEE_BTC = 0.0001
+    CODE_BTC = 'BTC'
+
     def __init__(self, parent):
         self.parent = parent
         self.is_loading = False
+        self.max_fee_amount = Decimal(self.MAX_FEE_BTC)  # TODO: use this some way
 
     def set_params(self):
         #self.currency_code = "BTC"
@@ -25,7 +29,6 @@ class Cryptagio(object):
         }
 
         self.tx_id = None
-        self.max_fee_amount = Decimal(0.1)  # TODO: use this some way
         self.tx_body_hash = None
 
     def check_for_uncorfimed_tx(self, currency_code):
@@ -119,7 +122,6 @@ class Cryptagio(object):
         self.is_loading = False
         return outputs
 
-
     def get_requests(self, currency_code):
         if self.is_loading:
             return self.parent.show_error(_('Data load is in process. Please wait'))
@@ -170,7 +172,6 @@ class Cryptagio(object):
         self.is_loading = False
         return requests
 
-
     def get_fund_addresses(self, currency_code):
         if self.is_loading:
             return self.parent.show_error(_('Data load is in process. Please wait'))
@@ -213,7 +214,6 @@ class Cryptagio(object):
 
         self.is_loading = False
         return outputs
-
 
     def update_tx(self, tx_id, tx_hash, fee, tx_body, tx_prev_body_hash, currency_code):
         if self.is_loading:
@@ -276,3 +276,12 @@ class Cryptagio(object):
         self.is_loading = False
 
         return tx_body_hash
+
+    def get_max_fee(self, currency_code):
+
+        max_fee = self.MAX_FEE_BTC
+
+        if currency_code != self.CODE_BTC:
+            return None
+
+        return max_fee

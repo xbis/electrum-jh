@@ -220,7 +220,8 @@ class CoinChooserBase(PrintError):
             value to pay for the transaction'''
             total_input = sum(bucket.value for bucket in buckets)
             total_weight = get_tx_weight(buckets)
-            return total_input >= spent_amount + fee_estimator_w(total_weight)
+            required_amount = spent_amount + fee_estimator_w(total_weight)
+            return total_input >= required_amount
 
         # Collect the coins into buckets, choose a subset of the buckets
         buckets = self.bucketize_coins(coins)

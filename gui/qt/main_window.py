@@ -1635,7 +1635,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             self.show_transaction(tx, tx_desc, self.cryptagio.tx_id, self.cryptagio.tx_body_hash, self.wallet.omni_code) #tx_hash
 
-    def get_tx(self, addr, amount, max_fee):
+    def get_omni_tx(self, addr, amount, max_fee, inputs=None):
         if addr is None:
             self.show_error(_('Bitcoin Address is None'))
             return
@@ -1646,8 +1646,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('Invalid Amount'))
             return
 
-        fee_estimator = self.get_send_fee_estimator()
-        coins = self.get_coins()
+        # fee_estimator = self.get_send_fee_estimator()
+        coins = self.get_coins() if inputs is None else inputs
 
         try:
             omni_address = addr
@@ -1679,11 +1679,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('Error building OMNI tx: ' + str(e)))
             return
         # substitute original outputs from JH
-        outputs = self.get_outputs_from_rawtx(hex_tx)
-        if not outputs:
-            self.show_error(_('Error parsing OMNI tx'))
+        #outputs = self.get_outputs_from_rawtx(hex_tx)
+        #if not outputs:
+        #    self.show_error(_('Error parsing OMNI tx'))
+        #    return
+
+        return hex_tx  #[coins, outputs]
+
+
+    def build_tx(self, addr, amount, max_fee, tx_id):
+
+        self.cryptagio.set_params()
+        tx_hex = self.get_omni_tx(addr, amount, max_fee)
+        if tx_hex is None:
             return
 
+        tx = Transaction(tx_hex)
+        tx.deserialize()
+
+        fee_estimator = self.get_send_fee_estimator()
         max_fee_satoshi = int(Decimal(max_fee) * pow(10, 8))
         fee = None
         while (not fee) or (max_fee_satoshi and fee > max_fee_satoshi):
@@ -1693,7 +1707,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 fee_estimator = max_fee_satoshi
             try:
                 tx = self.wallet.make_unsigned_transaction(
-                    coins, outputs, self.config, fixed_fee=fee_estimator, is_sweep=is_sweep)
+                    tx.inputs(), tx.outputs(), self.config, fixed_fee=fee_estimator, is_sweep=is_sweep)
             except NotEnoughFunds:
                 self.show_message(_("Insufficient funds"))
                 return
@@ -1713,12 +1727,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
             return
 
-        return tx, fee
-
-    def build_tx(self, addr, amount, max_fee, tx_id):
-
-        self.cryptagio.set_params()
-        tx, fee = self.get_tx(addr, amount, max_fee)
         self.show_transaction(tx, tx_id, tx_id, None, self.wallet.omni_code)  # tx_hash
 
     def do_send(self, preview=False):
