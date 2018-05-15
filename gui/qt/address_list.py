@@ -255,21 +255,17 @@ class AddressList(MyTreeWidget):
             base_tx = Transaction.from_io([], tx.outputs()[:])
             base_weight = base_tx.estimated_weight()
 
-            while True:
-                #hardcoded witness = False
-                weight_in = 0
-                for inp in coins:
-                    weight_in += Transaction.estimated_input_weight(inp, SEGWIT_TX)
+            #hardcoded segwit = False
+            weight_in = 0
+            for inp in coins:
+                weight_in += Transaction.estimated_input_weight(inp, SEGWIT_TX)
 
-                size = Transaction.virtual_size_from_weight(base_weight + weight_in)
-                fee = fee_estimator(size)
+            size = Transaction.virtual_size_from_weight(base_weight + weight_in)
+            fee = fee_estimator(size)
 
-                # TODO: Add change ???
+            # TODO: Add change ???
 
-                if btc_balance >= (dust + fee):
-                    # nothing to fund
-                    break
-
+            if btc_balance < (dust + fee):
                 # add input
                 amount = dust + fee - btc_balance
                 if amount < dust:
@@ -287,7 +283,7 @@ class AddressList(MyTreeWidget):
                 outputs.append((TYPE_ADDRESS, addr, int(amount)))
 
         if len(outputs) <= 0:
-            self.show_message(_("Funding do not required"))
+            self.parent.show_message(_("Funding do not required"))
             return
 
         fee = None
@@ -308,7 +304,7 @@ class AddressList(MyTreeWidget):
                 tx = self.wallet.make_unsigned_transaction(
                     coins, outputs, self.config, fixed_fee=fee_estimator)
             except NotEnoughFunds:
-                self.show_message(_("Insufficient funds"))
+                self.parent.show_message(_("Insufficient funds"))
                 return
             except BaseException as e:
                     traceback.print_exc(file=sys.stdout)

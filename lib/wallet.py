@@ -581,7 +581,14 @@ class Abstract_Wallet(PrintError):
     def get_addr_utxo(self, address):
         coins, spent = self.get_addr_io(address)
         for txi in spent:
-            coins.pop(txi)
+            if txi in coins:
+                coins.pop(txi)
+            else:
+                tx = txi.split(':')
+                if len(tx) >= 2:
+                    tx_hash = tx[0]
+                    self.remove_transaction(tx_hash)
+                self.parent.show_error(_("Wallet synchronization required. Txi not found: " + txi))
         out = {}
         for txo, v in coins.items():
             tx_height, value, is_cb = v
@@ -1627,7 +1634,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             else:
                 address = ''
             if address != self.omni_address:
-                self.save_hd_address()
+                self.save_hd_address(address, self.omni_path)
                 self.storage.put('omni_address', address)
                 if self.omni_address in self.receiving_addresses:
                     self.receiving_addresses.remove(self.omni_address)
