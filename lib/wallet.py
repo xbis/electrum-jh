@@ -1616,6 +1616,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.gap_limit = storage.get('gap_limit', 20)
 
         self.hd_paths              = storage.get('hd_paths', {})
+        self.addr_ids              = storage.get('addr_ids', {})
 
         # omni
         self.omni                  = storage.get('omni', False)
@@ -1641,6 +1642,18 @@ class Deterministic_Wallet(Abstract_Wallet):
                 self.omni_address = address
             self.add_receiving_address(address)
 
+    def add_addr_id(self, address, id):
+        if address in self.addr_ids:
+            return
+        self.addr_ids[address] = id
+        self.storage.put('addr_ids', self.addr_ids)
+
+    def get_addr_id(self, address):
+        if not address in self.addr_ids:
+            return None
+        return self.addr_ids[address]
+
+
     def add_receiving_address(self, address):
         if not bitcoin.is_address(address):
             return
@@ -1651,7 +1664,6 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.save_addresses()
         self.storage.write()
         return
-
 
     def has_seed(self):
         return self.keystore.has_seed()

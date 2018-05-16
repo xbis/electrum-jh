@@ -1,6 +1,9 @@
 import requests
 from electrum.i18n import _
 from decimal import Decimal
+from requests_toolbelt import MultipartEncoder
+from electrum.util import bh2u, bfh
+from electrum.bitcoin import Hash
 
 # 18/04/24
 # param currency_code added
@@ -8,22 +11,34 @@ from decimal import Decimal
 #CODE_BTC = 'BTC'
 #CODE_OMNI = 'OMNI'
 
+MODE_JH_FUND = 1
+MODE_JH_FLUSH = 2
+
 
 class Cryptagio(object):
 
     MAX_FEE_BTC = 0.0001
     CODE_BTC = 'BTC'
 
+
     def __init__(self, parent):
         self.parent = parent
         self.is_loading = False
         self.max_fee_amount = Decimal(self.MAX_FEE_BTC)  # TODO: use this some way
 
+        self.cryptagio_host = self.parent.config.get('cryptagio_host', '').rstrip('/')
+        self.cryptagio_key = self.parent.config.get('cryptagio_key', '')
+
+        self.jh_host = self.parent.config.get('jh_host', '').rstrip('/')
+        self.jh_key = self.parent.config.get('jh_key', '')
+
+        self.tx_id = None
+        self.tx_body_hash = None
+        self.jh_tx_id = None
+        self.jh_tx_body_hash = None
+
     def set_params(self):
         #self.currency_code = "BTC"
-        self.cryptagio_host = self.parent.config.get('cryptagio_host', '')
-        self.cryptagio_host = self.cryptagio_host.rstrip('/')
-        self.cryptagio_key = self.parent.config.get('cryptagio_key', '')
         self.headers = {
             'x-api-key': self.cryptagio_key
         }
@@ -285,3 +300,126 @@ class Cryptagio(object):
             return None
 
         return max_fee
+
+
+        currency = self.wallet.omni_code
+        jh_host = self.config.get('jh_host', '').rstrip('/')
+        jh_key = self.config.get('jh_key', '')
+        if jh_host == '' or jh_key == '':
+            self.parent.show_error(_('Check your Jackhammer preferences'))
+            return
+
+    def tx_get(self, currency, mode):
+        api_route = self.jh_host
+        if mode == MODE_JH_FUND:
+            api_route += "/fund"
+        else:
+            api_route += "/flush"
+        api_route += "/omni/" + currency + "/"
+        headers = {
+            'x-api-key': self.jh_key,
+        }
+        r = requests.get(api_route, headers=headers)
+        if r.status_code is not requests.codes.ok:
+            self.parent.show_error(_('Error response from Jackhammer. Code: ') + ("%s " % r.status_code) + r.text)
+            return None, None, None
+
+        response = r.json()
+        if response is None or not len(response):
+            return None, None, None
+
+        tx_body = response.get('tx_body', '')
+        tx_hash = response.get('tx_body_hash', '')
+        tx_id = response.get('tx_id', '')
+        return tx_id, tx_hash, tx_body
+
+
+    def tx_create(self, tx, addrs, currency, mode):
+
+        ser = tx.serialize()
+        tx_hash = bh2u(Hash(bfh(ser))[::-1])
+
+        api_route = self.jh_host
+        if mode == MODE_JH_FUND:
+            api_route += "/fund"
+        else:
+            api_route += "/flush"
+        api_route += "/omni/" + currency + "/"
+        data_list = [
+            ('tx_hash', tx_hash),
+            ('tx_body', str(tx))
+        ]
+        if addrs is not None:
+            for id in addrs:
+                if mode == MODE_JH_FUND:
+                    data_list.append(('fund_addresses_ids', str(id)))
+                else:
+                    data_list.append(('address_id', str(id)))
+
+        multipart_data = MultipartEncoder(
+            fields=data_list
+        )
+        headers = {
+            'x-api-key': self.jh_key,
+            'Content-Type': multipart_data.content_type
+        }
+        r = requests.post(api_route, headers=headers, data=multipart_data)
+        if r.status_code is not requests.codes.ok:
+            self.parent.show_error(_('Error response from Jackhammer. Code: ') + ("%s " % r.status_code) + r.text)
+            return
+
+        response = r.json()
+        if response is None or not len(response):
+            return
+
+        tx_hash = response.get('tx_body_hash', '')
+        tx_id = response.get('tx_id', '')
+        if tx_hash == '' or tx_id == '':
+            self.parent.show_error(_('Bad response from Jackhammer: ' + str(response)))
+            return
+
+        self.jh_tx_id, self.jh_tx_body_hash = tx_id, tx_hash
+
+    def tx_update(self, tx, currency, tx_id, prev_hash, mode, done=False):
+        ser = tx.serialize()
+        tx_hash = bh2u(Hash(bfh(ser))[::-1])
+
+        api_route = self.jh_host
+        if mode == MODE_JH_FUND:
+            api_route += "/fund"
+        else:
+            api_route += "/flush"
+        api_route += "/omni/" + currency + "/" + str(tx_id)
+
+        fund_data_list = [
+            ('tx_hash', tx_hash),
+            ('tx_body', str(tx)),
+            ('tx_prev_body_hash', prev_hash)
+        ]
+        if done:
+            fund_data_list.append(('status', 'Done'))
+
+        multipart_data = MultipartEncoder(
+            fields=fund_data_list
+        )
+        headers = {
+            'x-api-key': self.jh_key,
+            'Content-Type': multipart_data.content_type
+        }
+        r = requests.post(api_route, headers=headers, data=multipart_data)
+        if r.status_code is not requests.codes.ok:
+            self.parent.show_error(_('Error response from Jackhammer. Code: ') + ("%s " % r.status_code) + r.text)
+            return
+
+        response = r.json()
+        if response is None or not len(response):
+            return
+
+        tx_hash = response.get('tx_body_hash', '')
+        tx_id = response.get('tx_id', '')
+        if tx_hash == '' or tx_id == '':
+            self.parent.show_error(_('Bad response from Jackhammer: ' + str(response)))
+            return
+
+        self.jh_tx_id, self.jh_tx_body_hash = tx_id, tx_hash
+

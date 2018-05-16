@@ -780,11 +780,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = address_dialog.AddressDialog(self, addr)
         d.exec_()
 
-    def show_transaction(self, tx, tx_desc=None, cryptagio_tx_id=None, cryptagio_tx_hash=None, currency_code=None):
+    def show_transaction(self, tx, tx_desc=None, tx_id=None, tx_hash=None, currency_code=None, jh_mode=None, ids=None):
         '''tx_desc is set only for txs created in the Send tab'''
         if currency_code is None:
             currency_code = self.wallet.omni_code if self.wallet.omni else 'BTC'
-        show_transaction(tx, self, tx_desc, cryptagio_tx_id=cryptagio_tx_id, cryptagio_tx_hash=cryptagio_tx_hash, currency_code=currency_code)
+        show_transaction(tx, self, tx_desc, tx_id=tx_id, tx_hash=tx_hash, currency_code=currency_code, mode=jh_mode, ids=ids)
 
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
