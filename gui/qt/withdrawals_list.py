@@ -57,6 +57,10 @@ class WithdrawalsList(MyTreeWidget):
         return QLabel(_("Filter:")), self.refresh_button
 
     def do_refresh(self):
+        if not self.parent.wallet.omni:
+            self.parent.show_error(_('Withdrawals intended for OMNI wallets only'))
+            return
+
         if self.jh_is_loading:
             self.parent.show_error(_('Synchronization in process. Please wait'))
             return

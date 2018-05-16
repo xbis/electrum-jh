@@ -140,7 +140,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.send_tab = self.create_send_tab()
         self.receive_tab = self.create_receive_tab()
         self.addresses_tab = self.create_addresses_tab()
-        self.withdrawals_tab = self.create_withdrawals_tab()
+        if self.wallet.omni:
+            self.withdrawals_tab = self.create_withdrawals_tab()
         self.utxo_tab = self.create_utxo_tab()
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
@@ -157,7 +158,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("&Addresses"), "addresses")
-        add_optional_tab(tabs, self.withdrawals_tab, QIcon(":icons/tab_addresses.png"), _("&Withdrawals"), "withdrawals")
+        if self.wallet.omni:
+            add_optional_tab(tabs, self.withdrawals_tab, QIcon(":icons/tab_addresses.png"), _("&Withdrawals"), "withdrawals")
         add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
         add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
@@ -511,7 +513,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
-        add_toggle_action(view_menu, self.withdrawals_tab)
+        if self.wallet.omni:
+            add_toggle_action(view_menu, self.withdrawals_tab)
         add_toggle_action(view_menu, self.utxo_tab)
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
@@ -763,7 +766,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.history_list.update()
         self.request_list.update()
         self.address_list.update()
-        self.withdrawals_list.update()
+        if self.wallet.omni:
+            self.withdrawals_list.update()
         self.utxo_list.update()
         self.contact_list.update()
         self.invoice_list.update()
@@ -1697,6 +1701,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tx = Transaction(tx_hex)
         tx.deserialize()
 
+        utxos = self.wallet.get_addr_utxo(self.wallet.omni_address)
+        coins = []
+        for x in utxos.values():
+            self.wallet.add_input_info(x)
+            coins.append(x)
+
         fee_estimator = self.get_send_fee_estimator()
         max_fee_satoshi = int(Decimal(max_fee) * pow(10, 8))
         fee = None
@@ -1707,7 +1717,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 fee_estimator = max_fee_satoshi
             try:
                 tx = self.wallet.make_unsigned_transaction(
-                    tx.inputs(), tx.outputs(), self.config, fixed_fee=fee_estimator, is_sweep=is_sweep)
+                    coins, tx.outputs(), self.config, fixed_fee=fee_estimator, is_sweep=is_sweep)
             except NotEnoughFunds:
                 self.show_message(_("Insufficient funds"))
                 return

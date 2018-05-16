@@ -205,6 +205,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                                                                             tx_hash, fee, self.tx,
                                                                             self.tx_hash,
                                                                             self.currency_code)
+                        self.saved = True
                 else:
                     if self.tx_hash is None:
                         self.main_window.cryptagio.tx_create(self.tx,
