@@ -232,9 +232,9 @@ class TxDialog(QDialog, MessageBoxMixin):
                                                                  self.mode,
                                                                  done)
                             self.saved = True
-
-                self.main_window.withdrawals_list.withdrawals[:] = []
-                self.main_window.update_tabs()
+                if self.wallet.omni:
+                    self.main_window.withdrawals_list.withdrawals[:] = []
+                    self.main_window.update_tabs()
 
             self.main_window.pop_top_level_window(self)
             #self.main_window.up
