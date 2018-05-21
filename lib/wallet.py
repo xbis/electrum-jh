@@ -2047,9 +2047,6 @@ class Multisig_Wallet(Deterministic_Wallet):
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m
 
-    #def make_tx(self, inputs, outputs, config):
-    #    return make_unsigned_transaction(self, inputs, outputs, config,
-    #                              change_addr=None, is_sweep=False, max_fee=None)
 
 wallet_types = ['standard', 'multisig', 'imported', 'master']
 

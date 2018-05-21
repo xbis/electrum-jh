@@ -939,7 +939,7 @@ class Transaction:
 
     def is_complete(self):
         s, r = self.signature_count()
-        return r > 0 and r == s
+        return s > 0 and r == s
 
     def sign(self, keypairs):
         for i, txin in enumerate(self.inputs()):

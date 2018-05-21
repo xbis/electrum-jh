@@ -1200,26 +1200,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
         self.cryptagio_button = EnterButton(_("Cryptagio Withdraw"), self.do_cryptagio)
-        #self.fund_button = EnterButton(_("Cryptagio Fund"), self.do_fund)
-
-        #def on_omni_change(x):
-        #    self.omni_cryptagio = x == Qt.Checked
-
-        #self.omni_cb = QCheckBox(_('OMNI'))
-        #self.omni_cb.setChecked(False)
-        #self.omni_cb.stateChanged.connect(on_omni_change)
-        #self.omni_cb.setToolTip(
-        #    _('Check to query OMNI withdrawals from Cryptagio'))
-
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
         buttons.addWidget(self.clear_button)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.send_button)
-        #buttons.addWidget(self.omni_cb)
         buttons.addWidget(self.cryptagio_button)
-        #buttons.addWidget(self.fund_button)
         grid.addLayout(buttons, 6, 1, 1, 3)
 
         self.amount_e.shortcut.connect(self.spend_max)
@@ -1527,7 +1514,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                               'Use Withdrawals tab'))
             return
 
-        #currency_code = self.wallet.omni_code if self.wallet.omni else "BTC"
         currency_code = "BTC"
         tx_hash, fee, tx_body = self.cryptagio.check_for_uncorfimed_tx("BTC")
 
@@ -1570,44 +1556,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             fee_estimator = self.get_send_fee_estimator()
             coins = self.get_coins()
-
-            # omni
-            if self.omni_cryptagio:
-                # update outputs
-                try:
-                    omni_address = outputs[0][1]    # address
-                    omni_amount = outputs[0][2]  # amount
-                    payload = self.wallet.omni_daemon.getSimplesendPayload(self.wallet.omni_property, str(omni_amount))
-                    if payload['error']:
-                        self.show_error(_('Error building payload: ' + payload['error']))
-                        return
-
-                    hex_tx = ""
-                    for inp in coins:
-                        omni_tx = self.wallet.omni_daemon.createRawTxInput(inp['prevout_hash'], inp['prevout_n'], hex_tx)
-                        if omni_tx['error']:
-                            self.show_error(_('Error building output OP_RETURN: ' + omni_tx['error']))
-                            return
-                        hex_tx = omni_tx['result']
-
-                    omni_tx = self.wallet.omni_daemon.createRawTxOpReturn(payload['result'], hex_tx)
-                    if omni_tx['error']:
-                        self.show_error(_('Error building output OP_RETURN: ' + omni_tx['error']))
-                        return
-                    hex_tx = omni_tx['result']
-                    omni_tx = self.wallet.omni_daemon.createRawTxReference(omni_address, hex_tx)
-                    if omni_tx['error']:
-                        self.show_error(_('Error building output OP_RETURN: ' + omni_tx['error']))
-                        return
-                    hex_tx = omni_tx['result']
-                except Exception as e:
-                    self.show_error(_('Error building OMNI tx: ' + str(e)))
-                    return
-                # substitute original outputs from JH
-                outputs = self.get_outputs_from_rawtx(hex_tx)
-                if not outputs:
-                    self.show_error(_('Error parsing OMNI tx'))
-                    return
 
             max_fee_satoshi = int(self.cryptagio.max_fee_amount * pow(10, 8))
             while (not fee) or (fee > max_fee_satoshi):
@@ -2568,13 +2516,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not text:
             return
         try:
-            coins = self.get_coins()
-            outputs = self.get_outputs_from_rawtx(text)
-            if outputs:
-                tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config)
+            #coins = self.get_coins()
+            #outputs = self.get_outputs_from_rawtx(text)
+            #if outputs:
+            #    tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config)
+            tx = self.tx_from_text(text)
+            if tx:
                 self.show_transaction(tx)
-            else:
-                self.show_critical(_("Error in getting outputs from text"))
+            #else:
+            #    self.show_critical(_("Error in getting outputs from text"))
         except SerializationError as e:
             self.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
         except Exception as e:
