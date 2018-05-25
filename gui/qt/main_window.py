@@ -1585,7 +1585,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
                 return
 
-            self.show_transaction(tx, tx_desc, self.cryptagio.tx_id, self.cryptagio.tx_body_hash, self.wallet.omni_code) #tx_hash
+            self.show_transaction(tx, tx_desc, self.cryptagio.tx_id, self.cryptagio.tx_body_hash, currency_code)
 
     def get_omni_tx(self, addr, amount, max_fee, inputs=None):
         if addr is None:

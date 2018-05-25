@@ -78,6 +78,13 @@ class WithdrawalsList(MyTreeWidget):
             self.parent.show_error(_('Synchronization in process. Please wait'))
             return
 
+        # hardcoded fund in BTC
+        max_fee = self.parent.cryptagio.get_max_fee('BTC')
+        fee_estimator = self.parent.get_send_fee_estimator()
+        if fee_estimator is None:
+            fee_estimator = partial(
+                simple_config.SimpleConfig.estimate_fee_for_feerate, self.wallet.relayfee())
+
         currency = self.wallet.omni_code
         jh_host = self.config.get('jh_host', '').rstrip('/')
         jh_key = self.config.get('jh_key', '')
@@ -164,13 +171,6 @@ class WithdrawalsList(MyTreeWidget):
                 self.parent.show_message(_('No income addresses'))
                 return
             '''
-
-            # hardcoded fund in BTC
-            max_fee = self.parent.cryptagio.get_max_fee('BTC')
-            fee_estimator = self.parent.get_send_fee_estimator()
-            if fee_estimator is None:
-                fee_estimator = partial(
-                    simple_config.SimpleConfig.estimate_fee_for_feerate, self.wallet.relayfee())
 
             # self.wallet.wait_until_synchronized()
 
