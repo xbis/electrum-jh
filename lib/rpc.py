@@ -1,5 +1,6 @@
 import requests, getpass
 import time, json
+import random
 
 
 class RPCHostOmni():
@@ -8,12 +9,14 @@ class RPCHostOmni():
         self._session = requests.Session()
         # self._url = daemon_url
         self._headers = {'content-type': 'application/json'}
+        self.id = random.randrange(2**31 - 1)
 
     def set_url(self, daemon_url):
         self._url = daemon_url
 
     def call(self, rpcMethod, *params):
-        payload = json.dumps({"method": rpcMethod, "params": list(params), "jsonrpc": "2.0"})
+        self.id += 1
+        payload = json.dumps({"id": str(self.id), "method": rpcMethod, "params": list(params), "jsonrpc": "2.0"})
         tries = 10
         hadConnectionFailures = False
         while True:
