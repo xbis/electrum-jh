@@ -224,6 +224,36 @@ class Commands:
         tx.sign(keypairs)
         return tx.as_dict()
 
+    # added 18/05/29 for tx serialization
+    @command('')
+    def getrawtx(self, jsontx):
+        """Create a transaction from json inputs.
+        Outputs must be a list of {'address':address, 'value':satoshi_amount}.
+        """
+        keypairs = {}
+        inputs = jsontx.get('inputs')
+        outputs = jsontx.get('outputs')
+        locktime = jsontx.get('locktime', 0)
+        for txin in inputs:
+            if txin.get('output'):
+                prevout_hash, prevout_n = txin['output'].split(':')
+                txin['prevout_n'] = int(prevout_n)
+                txin['prevout_hash'] = prevout_hash
+            sec = txin.get('privkey')
+            if sec:
+                txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
+                pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
+                keypairs[pubkey] = privkey, compressed
+                txin['type'] = txin_type
+                txin['x_pubkeys'] = [pubkey]
+                txin['signatures'] = [None]
+                txin['num_sig'] = 1
+
+        outputs = [(TYPE_ADDRESS, x['address'], int(x['value'])) for x in outputs]
+        tx = Transaction.from_io(inputs, outputs, locktime=locktime)
+        #tx.sign(keypairs)
+        return tx.serialize()     #as_dict()
+
     @command('wp')
     def signtransaction(self, tx, privkey=None, password=None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
@@ -605,6 +635,12 @@ class Commands:
         """Create a new receiving address, beyond the gap limit of the wallet"""
         return self.wallet.create_new_address(False)
 
+    # Added 18/05/30
+    @command('w')
+    def importaddress(self, address):
+        """Import watching-only address"""
+        return self.wallet.import_address(address) == address
+
     @command('w')
     def getunusedaddress(self):
         """Returns the first unused address of the wallet, or None if all addresses are used.
@@ -671,6 +707,16 @@ class Commands:
     def is_synchronized(self):
         """ return wallet synchronization status """
         return self.wallet.is_up_to_date()
+
+    # Added 18/05/31
+    @command('wn')
+    def walletstatus(self):
+        """ return wallet status """
+        out = {
+            'synchronized': self.wallet.is_up_to_date(),
+            'local_height': self.wallet.get_local_height(),
+        }
+        return out
 
     @command('')
     def help(self):

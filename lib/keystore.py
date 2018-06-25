@@ -231,7 +231,8 @@ class Xpub:
                 self.xpub_change = xpub
             else:
                 # JH FIX: do not build derivation for receive address
-                xpub = self.xpub
+                # JH UNFIX  23/06/2018 by xbis
+                xpub = bip32_public_derivation(self.xpub, "", "/%d"%for_change)
                 self.xpub_receive = xpub
 
         # Fix to allow depth
@@ -249,16 +250,19 @@ class Xpub:
         return bh2u(cK)
 
     # Hacked for Jackhammer: not to build payment addresses from HD xpub
+    # restored 23/06/2018 by xbis
     def get_xpubkey(self, for_change, i):
         if type(i) != tuple:
             assert type(i) == int
             i = (i,)
 
-        if for_change:
-            s = ''.join(map(lambda x: bitcoin.int_to_hex(x, MASK_SIZE), (for_change,) + i))
-        else:
-            s = ''.join(map(lambda x: bitcoin.int_to_hex(x, MASK_SIZE), i))
+        #if for_change:
+        #    s = ''.join(map(lambda x: bitcoin.int_to_hex(x, MASK_SIZE), (for_change,) + i))
+        #else:
+        #    s = ''.join(map(lambda x: bitcoin.int_to_hex(x, MASK_SIZE), i))
 
+        # 23/06/2018 xbis
+        s = ''.join(map(lambda x: bitcoin.int_to_hex(x, MASK_SIZE), (for_change,) + i))
         return 'ff' + bh2u(bitcoin.DecodeBase58Check(self.xpub)) + s
 
     @classmethod
