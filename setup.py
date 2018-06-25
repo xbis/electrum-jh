@@ -45,7 +45,7 @@ setup(
         'dnspython',
         'jsonrpclib-pelix',
         'PySocks>=1.6.6',
-        'requests-toolbelt>=0.8.0',
+        #'requests-toolbelt>=0.8.0',
     ],
     packages=[
         'electrum',

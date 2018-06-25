@@ -1,15 +1,12 @@
 import requests
 from electrum.i18n import _
 from decimal import Decimal
-from requests_toolbelt import MultipartEncoder
+
 from electrum.util import bh2u, bfh
 from electrum.bitcoin import Hash
 
 # 18/04/24
 # param currency_code added
-
-#CODE_BTC = 'BTC'
-#CODE_OMNI = 'OMNI'
 
 MODE_JH_FUND = 1
 MODE_JH_FLUSH = 2
@@ -336,6 +333,8 @@ class Cryptagio(object):
 
     def tx_create(self, tx, addrs, currency, mode):
 
+        from requests_toolbelt import MultipartEncoder
+
         ser = tx.serialize()
         tx_hash = bh2u(Hash(bfh(ser))[::-1])
 
@@ -381,6 +380,9 @@ class Cryptagio(object):
         self.jh_tx_id, self.jh_tx_body_hash = tx_id, tx_hash
 
     def tx_update(self, tx, currency, tx_id, prev_hash, mode, done=False):
+
+        from requests_toolbelt import MultipartEncoder
+
         ser = tx.serialize()
         tx_hash = bh2u(Hash(bfh(ser))[::-1])
 

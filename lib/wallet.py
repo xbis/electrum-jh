@@ -63,7 +63,7 @@ from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 
-import lib.rpc as rpc_omni
+from .rpc import RPCHostOmni
 
 from decimal import *
 
@@ -1620,16 +1620,17 @@ class Deterministic_Wallet(Abstract_Wallet):
 
         # omni
         self.omni                  = storage.get('omni', False)
-        self.omni_path             = storage.get('omni_path', '0:0:0')
-        self.omni_address          = storage.get('omni_address', '')
-        self.omni_host             = storage.get('omni_host', 'http://admin1:123@127.0.0.1:19401/')
-        self.omni_balance          = storage.get('omni_balance', False)
-        self.omni_property         = storage.get('omni_property', '1')
-        self.omni_code             = storage.get('omni_code', 'OMNI')
-        self.omni_daemon = rpc_omni.RPCHostOmni()
-        self.omni_daemon.set_url(self.omni_host)
 
         if self.omni:
+            self.omni_path = storage.get('omni_path', '0:0:0')
+            self.omni_address = storage.get('omni_address', '')
+            self.omni_host = storage.get('omni_host', 'http://admin1:123@127.0.0.1:19401/')
+            self.omni_balance = storage.get('omni_balance', False)
+            self.omni_property = storage.get('omni_property', '1')
+            self.omni_code = storage.get('omni_code', 'OMNI')
+            self.omni_daemon = RPCHostOmni()
+            self.omni_daemon.set_url(self.omni_host)
+
             if self.omni_path:
                 address = self.create_hd_address(self.omni_path)
             else:

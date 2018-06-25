@@ -70,7 +70,7 @@ class WithdrawalsList(MyTreeWidget):
         POS_TYPE = 0
         POS_ADDRESS = 1  # address position in an output tuple
 
-        if not self.wallet.omni:
+        if not (hasattr(self.wallet, 'omni') and self.wallet.omni):
             self.parent.show_error(_('Funding intended for OMNI wallets only'))
             return
 
@@ -283,7 +283,7 @@ class WithdrawalsList(MyTreeWidget):
 
     def do_transfer(self):
 
-        if not self.wallet.omni:
+        if not (hasattr(self.wallet, 'omni') and self.wallet.omni):
             self.parent.show_error(_('Flushing intended for OMNI wallets only'))
             return
 

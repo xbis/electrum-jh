@@ -140,7 +140,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.send_tab = self.create_send_tab()
         self.receive_tab = self.create_receive_tab()
         self.addresses_tab = self.create_addresses_tab()
-        if self.wallet.omni:
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
             self.withdrawals_tab = self.create_withdrawals_tab()
         self.utxo_tab = self.create_utxo_tab()
         self.console_tab = self.create_console_tab()
@@ -158,7 +158,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("&Addresses"), "addresses")
-        if self.wallet.omni:
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
             add_optional_tab(tabs, self.withdrawals_tab, QIcon(":icons/tab_addresses.png"), _("&Withdrawals"), "withdrawals")
         add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
@@ -513,7 +513,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
-        if self.wallet.omni:
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
             add_toggle_action(view_menu, self.withdrawals_tab)
         add_toggle_action(view_menu, self.utxo_tab)
         add_toggle_action(view_menu, self.contacts_tab)
@@ -737,7 +737,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     text += " [%s unconfirmed]" % (self.format_amount(u, True).strip())
                 if x:
                     text += " [%s unmatured]" % (self.format_amount(x, True).strip())
-                if self.wallet.omni_balance:
+                if hasattr(self.wallet, 'omni') and self.wallet.omni_balance:
                     omni_amount = self.wallet.omni_getbalance()
                     text += " [%s]" % (omni_amount)
 
@@ -766,7 +766,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.history_list.update()
         self.request_list.update()
         self.address_list.update()
-        if self.wallet.omni:
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
             self.withdrawals_list.update()
         self.utxo_list.update()
         self.contact_list.update()
@@ -787,7 +787,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def show_transaction(self, tx, tx_desc=None, tx_id=None, tx_hash=None, currency_code=None, jh_mode=None, ids=None):
         '''tx_desc is set only for txs created in the Send tab'''
         if currency_code is None:
-            currency_code = self.wallet.omni_code if self.wallet.omni else 'BTC'
+            currency_code = self.wallet.omni_code if hasattr(self.wallet, 'omni') and self.wallet.omni else 'BTC'
         show_transaction(tx, self, tx_desc, tx_id=tx_id, tx_hash=tx_hash, currency_code=currency_code, mode=jh_mode, ids=ids)
 
     def create_receive_tab(self):
@@ -1509,7 +1509,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_cryptagio(self):
         if run_hook('abort_send', self):
             return
-        if self.wallet.omni:
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
             self.show_error(_('Unavailable for OMNI wallet' + '\n' +
                               'Use Withdrawals tab'))
             return
@@ -3082,9 +3082,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((qr_label, qr_combo))
 
         usechange_cb = QCheckBox(_('Use change addresses'))
-        usechange_cb.setChecked(False if self.wallet.omni else self.wallet.use_change)
+        usechange_cb.setChecked(False if hasattr(self.wallet, 'omni') and self.wallet.omni else self.wallet.use_change)
         # omni
-        if not self.config.is_modifiable('use_change') or self.wallet.omni: usechange_cb.setEnabled(False)
+        if not self.config.is_modifiable('use_change') or (hasattr(self.wallet, 'omni') and self.wallet.omni):
+            usechange_cb.setEnabled(False)
 
         def on_usechange(x):
             usechange_result = x == Qt.Checked
@@ -3106,8 +3107,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         multiple_change = self.wallet.multiple_change
         multiple_cb = QCheckBox(_('Use multiple change addresses'))
-        multiple_cb.setChecked(False if self.wallet.omni else multiple_change)
-        multiple_cb.setEnabled(False if self.wallet.omni else self.wallet.use_change)
+        multiple_cb.setChecked(False if hasattr(self.wallet, 'omni') and self.wallet.omni else multiple_change)
+        multiple_cb.setEnabled(False if hasattr(self.wallet, 'omni') and self.wallet.omni else self.wallet.use_change)
         multiple_cb.setToolTip('\n'.join([
             _('In some cases, use up to 3 change addresses in order to break '
               'up large coin amounts and obfuscate the recipient address.'),

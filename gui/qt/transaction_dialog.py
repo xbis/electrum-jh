@@ -32,7 +32,6 @@ from electrum.plugins import run_hook
 from electrum.util import bfh
 
 from .util import *
-from lib.cryptagio import (MODE_JH_FUND, MODE_JH_FLUSH)
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
@@ -93,7 +92,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.fee_label = QLabel()
         vbox.addWidget(self.fee_label)
 
-        if self.wallet.omni:
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
             self.omni_amount_label = QLabel()
             vbox.addWidget(self.omni_amount_label)
 
@@ -232,7 +231,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                                                                  self.mode,
                                                                  done)
                             self.saved = True
-                if self.wallet.omni:
+                if hasattr(self.wallet, 'omni') and self.wallet.omni:
                     self.main_window.withdrawals_list.withdrawals[:] = []
                     self.main_window.update_tabs()
 
@@ -297,7 +296,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.size_label.setText(size_str)
 
         # omni
-        if self.wallet.omni:
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
             omni_tx_amount_str = self.wallet.omni_getamount(str(self.tx.raw))
             omni_amount_str = _("OMNI amount: ") + '%s' % omni_tx_amount_str
             self.omni_amount_label.setText(omni_amount_str)
