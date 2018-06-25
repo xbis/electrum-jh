@@ -25,12 +25,12 @@
 import webbrowser
 
 import requests
-from electrum.bitcoin import is_address
 from electrum.i18n import _
 from electrum.plugins import run_hook
 from electrum.util import block_explorer_URL
-
 from .util import *
+from electrum.bitcoin import is_address
+
 
 
 class AddressList(MyTreeWidget):
@@ -51,12 +51,13 @@ class AddressList(MyTreeWidget):
         self.used_button.currentIndexChanged.connect(self.toggle_used)
         for t in [_('All'), _('Unused'), _('Funded'), _('Used')]:
             self.used_button.addItem(t)
+        self.refresh_button = EnterButton(_("JH Refresh"), self.do_refresh)
+        self.refresh_button.setToolTip(_('Refresh HD wallet balances'))
+
 
     def get_list_header(self):
-        refresh_button = EnterButton(_("JH Refresh"), self.do_refresh)
-        refresh_button.setToolTip(_('Refresh HD wallet balances.'))
-
-        return QLabel(_("Filter:")), self.change_button, self.used_button, refresh_button
+        #self.omni_cb.setChecked(self.parent.omni_cryptagio)
+        return QLabel(_("Filter:")), self.change_button, self.used_button, self.refresh_button
 
     def do_refresh(self):
         if self.jh_is_loading:
@@ -64,10 +65,9 @@ class AddressList(MyTreeWidget):
             return
 
         self.jh_is_loading = True
-        self.update()
 
         def a():
-            currency = "BTC"
+            currency = self.wallet.omni_code if self.wallet.omni else 'BTC'
             jh_host = self.config.get('jh_host', '').rstrip('/')
             jh_key = self.config.get('jh_key', '')
 
@@ -91,21 +91,19 @@ class AddressList(MyTreeWidget):
 
                 for addr in response:
                     path = addr.get('hd_key', '')
-                    address = addr.get('address', '')
-
                     if path == '':
                         return self.parent.show_error(_('Bad response from Jackhammer'))
 
-                    hd_address = self.wallet.create_new_hd_address(path, False)
-                    if address != hd_address:
-                        # return self.parent.show_error(_('Wrong address was generated. Check if your masterxpub matches'))
-                        # PATH update fix: just ignore invalid address
-                        continue
-
-                    self.wallet.create_new_hd_address(path, True)
+                    address = addr.get('address', '')
                     lastId = addr.get('id', 0)
-                    if lastId == 0:
-                        return
+
+                    hd_address = self.wallet.create_hd_address(path)
+                    if address == hd_address:
+                        self.wallet.save_hd_address(address, path)
+
+                # addresses not imported => exit
+                if lastId == 0:
+                    break
 
         try:
             a()
@@ -115,6 +113,7 @@ class AddressList(MyTreeWidget):
 
         self.jh_is_loading = False
         self.update()
+
 
     def refresh_headers(self):
         headers = [_('Address'), _('Label'), _('Balance')]

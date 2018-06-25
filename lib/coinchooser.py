@@ -176,7 +176,7 @@ class CoinChooserBase(PrintError):
         return change
 
     def make_tx(self, coins, outputs, change_addrs, fee_estimator,
-                dust_threshold):
+                dust_threshold, change_position=None):
         """Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
@@ -220,7 +220,8 @@ class CoinChooserBase(PrintError):
             value to pay for the transaction'''
             total_input = sum(bucket.value for bucket in buckets)
             total_weight = get_tx_weight(buckets)
-            return total_input >= spent_amount + fee_estimator_w(total_weight)
+            required_amount = spent_amount + fee_estimator_w(total_weight)
+            return total_input >= required_amount
 
         # Collect the coins into buckets, choose a subset of the buckets
         buckets = self.bucketize_coins(coins)
@@ -234,7 +235,8 @@ class CoinChooserBase(PrintError):
         output_weight = 4 * Transaction.estimated_output_size(change_addrs[0])
         fee = lambda count: fee_estimator_w(tx_weight + count * output_weight)
         change = self.change_outputs(tx, change_addrs, fee, dust_threshold)
-        tx.add_outputs(change)
+
+        tx.add_outputs(change, change_position)
 
         self.print_error("using %d inputs" % len(tx.inputs()))
         self.print_error("using buckets:", [bucket.desc for bucket in buckets])

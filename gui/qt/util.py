@@ -50,7 +50,10 @@ class Timer(QThread):
     def run(self):
         while not self.stopped:
             self.timer_signal.emit()
-            time.sleep(0.5)
+
+            # omni
+            # time.sleep(0.5)
+            time.sleep(1)
 
     def stop(self):
         self.stopped = True

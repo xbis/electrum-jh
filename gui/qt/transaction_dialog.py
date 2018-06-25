@@ -36,15 +36,16 @@ from .util import *
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
-def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False, cryptagio_tx_id=None, cryptagio_tx_hash=None):
-    d = TxDialog(tx, parent, desc, prompt_if_unsaved, cryptagio_tx_id, cryptagio_tx_hash)
+def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False, tx_id=None, tx_hash=None,
+                     currency_code="BTC", mode=None, ids=None):
+    d = TxDialog(tx, parent, desc, prompt_if_unsaved, tx_id, tx_hash, currency_code, mode, ids)
     dialogs.append(d)
     d.show()
 
 
 class TxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, tx, parent, desc, prompt_if_unsaved, cryptagio_tx_id, cryptagio_tx_hash):
+    def __init__(self, tx, parent, desc, prompt_if_unsaved, tx_id, tx_hash, currency_code, mode, ids):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -60,8 +61,11 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
-        self.cryptagio_tx_id = cryptagio_tx_id
-        self.cryptagio_tx_hash = cryptagio_tx_hash
+        self.tx_id = tx_id
+        self.tx_hash = tx_hash
+        self.currency_code = currency_code
+        self.mode = mode
+        self.ids = ids
 
         self.setMinimumWidth(750)
         self.setWindowTitle(_("Transaction"))
@@ -88,15 +92,19 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.fee_label = QLabel()
         vbox.addWidget(self.fee_label)
 
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
+            self.omni_amount_label = QLabel()
+            vbox.addWidget(self.omni_amount_label)
+
         self.add_io(vbox)
 
         vbox.addStretch(1)
 
-        self.sign_button = b = QPushButton(_("Sign" if self.cryptagio_tx_id is None else "Sign for Peatio"))
+        self.sign_button = b = QPushButton(_("Sign" if self.tx_id is None else "Sign for Peatio"))
         b.clicked.connect(self.sign)
 
         self.broadcast_button = b = QPushButton(
-            _("Broadcast" if self.cryptagio_tx_id is None else "Broadcast for Peatio"))
+            _("Broadcast" if self.tx_id is None else "Broadcast for Peatio"))
         b.clicked.connect(self.do_broadcast)
 
         self.save_button = b = QPushButton(_("Save"))
@@ -124,15 +132,41 @@ class TxDialog(QDialog, MessageBoxMixin):
         hbox.addStretch(1)
         hbox.addLayout(Buttons(*self.buttons))
         vbox.addLayout(hbox)
-        self.update()
+
+        # auto-updater
+        tx_hash, fee = self.update()
+        if tx_hash is not None:
+            if mode is not None and (tx_id is not None) and (tx_hash is not None) and \
+                    tx.is_complete() and (tx_hash in self.wallet.transactions.keys()):
+                height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
+                if height > 0 and conf > 0:
+                    self.main_window.cryptagio.tx_update(tx,
+                                                         currency_code,
+                                                         tx_id,
+                                                         tx_hash,
+                                                         mode,
+                                                         True)
+                    self.main_window.show_message(_("Transaction confirmed"))
 
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
         try:
             self.main_window.broadcast_transaction(self.tx, self.desc)
-            if self.cryptagio_tx_hash is not None:
-                self.cryptagio_tx_hash = self.main_window.cryptagio.approve_tx(self.cryptagio_tx_id, self.tx, self.cryptagio_tx_hash)
-                if self.cryptagio_tx_hash is not None:
+            if self.tx_hash is not None:
+                if self.mode is None:
+                    self.tx_hash = self.main_window.cryptagio.approve_tx(self.tx_id,
+                                                                         self.tx,
+                                                                         self.tx_hash,
+                                                                         self.currency_code)
+                else:
+                    self.main_window.cryptagio.tx_update(self.tx,
+                                                         self.currency_code,
+                                                         self.tx_id,
+                                                         self.tx_hash,
+                                                         self.mode,
+                                                         True)
+                #else:
+                if self.tx_hash is not None:
                     self.broadcast_button.setDisabled(True)
         finally:
             self.main_window.pop_top_level_window(self)
@@ -164,11 +198,45 @@ class TxDialog(QDialog, MessageBoxMixin):
 
                 tx_hash, fee = self.update()
                 # if not self.tx.is_complete() and self.cryptagio_tx_id is not None:
-                if self.cryptagio_tx_id is not None:
-                    self.cryptagio_tx_hash = self.main_window.cryptagio.update_tx(self.cryptagio_tx_id,
-                                                                                  tx_hash, fee, self.tx,
-                                                                                  self.cryptagio_tx_hash)
+                if self.mode is None:
+                    if not self.tx.is_complete() and self.tx_id is not None:
+                        self.tx_hash = self.main_window.cryptagio.update_tx(self.tx_id,
+                                                                            tx_hash, fee, self.tx,
+                                                                            self.tx_hash,
+                                                                            self.currency_code)
+                        self.saved = True
+                else:
+                    if self.tx_hash is None:
+                        self.main_window.cryptagio.tx_create(self.tx,
+                                                             self.ids,
+                                                             self.currency_code,
+                                                             self.mode)
+                        self.saved = True
+                    else:
+                        done = None
+                        update = False
+                        if self.tx.is_complete():
+                            if tx_hash in self.wallet.transactions.keys():
+                                height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
+                                if height > 0 and conf:
+                                    done = True
+                                    update = True
+                        else:
+                            update = True
+                        if update:
+                            self.main_window.cryptagio.tx_update(self.tx,
+                                                                 self.currency_code,
+                                                                 self.tx_id,
+                                                                 self.tx_hash,
+                                                                 self.mode,
+                                                                 done)
+                            self.saved = True
+                if hasattr(self.wallet, 'omni') and self.wallet.omni:
+                    self.main_window.withdrawals_list.withdrawals[:] = []
+                    self.main_window.update_tabs()
+
             self.main_window.pop_top_level_window(self)
+            #self.main_window.up
 
         self.sign_button.setDisabled(True)
         self.main_window.push_top_level_window(self)
@@ -226,6 +294,13 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
+
+        # omni
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
+            omni_tx_amount_str = self.wallet.omni_getamount(str(self.tx.raw))
+            omni_amount_str = _("OMNI amount: ") + '%s' % omni_tx_amount_str
+            self.omni_amount_label.setText(omni_amount_str)
+
         run_hook('transaction_dialog_update', self)
         return tx_hash, fee
 

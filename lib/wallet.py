@@ -63,6 +63,10 @@ from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 
+from .rpc import RPCHostOmni
+
+from decimal import *
+
 TX_STATUS = [
     _('Replaceable'),
     _('Unconfirmed parent'),
@@ -174,9 +178,9 @@ class Abstract_Wallet(PrintError):
         self.use_change            = storage.get('use_change', True)
         self.multiple_change       = storage.get('multiple_change', False)
         self.labels                = storage.get('labels', {})
-        self.hd_paths              = storage.get('hd_paths', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
+        self.ignored_addresses     = storage.get('ignored_addresses', [])
 
         self.load_keystore()
         self.load_addresses()
@@ -210,6 +214,15 @@ class Abstract_Wallet(PrintError):
         self.invoices = InvoiceStore(self.storage)
         self.contacts = Contacts(self.storage)
 
+    def is_ignored_address(self, address):
+        return address in self.ignored_addresses
+
+    def add_ignored_address(self, address):
+        if address in self.ignored_addresses:
+            return
+        self.ignored_addresses.append(address)
+        self.storage.put('ignored_addresses', self.ignored_addresses)
+        self.storage.write()
 
     def diagnostic_name(self):
         return self.basename()
@@ -273,7 +286,8 @@ class Abstract_Wallet(PrintError):
     @profiler
     def check_history(self):
         save = False
-        mine_addrs = list(filter(lambda k: self.is_mine(self.history[k]), self.history.keys()))
+        # mine_addrs = list(filter(lambda k: self.is_mine(self.history[k]), self.history.keys()))
+        mine_addrs = list(filter(lambda k: self.is_mine(k), self.history.keys()))
         if len(mine_addrs) != len(self.history.keys()):
             save = True
         for addr in mine_addrs:
@@ -331,29 +345,6 @@ class Abstract_Wallet(PrintError):
             self.storage.put('labels', self.labels)
 
         return changed
-
-    # FUNCTIONS SIMILAR TO SET/GET LABEL, BUT TO SAVE PATH FOR HD-KEY FROM JACKHAMMER
-    def set_hdpath(self, name, text = None):
-        changed = False
-        old_text = self.hd_paths.get(name)
-        if text:
-            text = text.replace("\n", " ")
-            if old_text != text:
-                self.hd_paths[name] = text
-                changed = True
-        else:
-            if old_text:
-                self.hd_paths.pop(name)
-                changed = True
-
-        if changed:
-            run_hook('set_hdpath', self, name, text)
-            self.storage.put('hd_paths', self.hd_paths)
-
-        return changed
-
-    def get_hdpath(self, tx_hash):
-        return self.hd_paths.get(tx_hash, '')
 
     def is_mine(self, address):
         return address in self.get_addresses()
@@ -590,7 +581,14 @@ class Abstract_Wallet(PrintError):
     def get_addr_utxo(self, address):
         coins, spent = self.get_addr_io(address)
         for txi in spent:
-            coins.pop(txi)
+            if txi in coins:
+                coins.pop(txi)
+            else:
+                tx = txi.split(':')
+                if len(tx) >= 2:
+                    tx_hash = tx[0]
+                    self.remove_transaction(tx_hash)
+                self.parent.show_error(_("Wallet synchronization required. Txi not found: " + txi))
         out = {}
         for txo, v in coins.items():
             tx_height, value, is_cb = v
@@ -940,12 +938,14 @@ class Abstract_Wallet(PrintError):
         else:
             raise BaseException('Invalid argument fixed_fee: %s' % fixed_fee)
 
+        change_position = 0 if self.omni else None
+
         if i_max is None:
             # Let the coin chooser select the coins to spend
             max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.get_coin_chooser(config)
             tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
-                                      fee_estimator, self.dust_threshold())
+                                      fee_estimator, self.dust_threshold(), change_position)
         else:
             # FIXME?? this might spend inputs with negative effective value...
             sendable = sum(map(lambda x:x['value'], inputs))
@@ -958,7 +958,8 @@ class Abstract_Wallet(PrintError):
             tx = Transaction.from_io(inputs, outputs[:])
 
         # Sort the inputs and outputs deterministically
-        tx.BIP_LI01_sort()
+        if not self.omni:
+            tx.BIP_LI01_sort()
         # Timelock tx to current height.
         tx.locktime = self.get_local_height()
         run_hook('make_unsigned_transaction', self, tx)
@@ -1614,6 +1615,57 @@ class Deterministic_Wallet(Abstract_Wallet):
         Abstract_Wallet.__init__(self, storage)
         self.gap_limit = storage.get('gap_limit', 20)
 
+        self.hd_paths              = storage.get('hd_paths', {})
+        self.addr_ids              = storage.get('addr_ids', {})
+
+        # omni
+        self.omni                  = storage.get('omni', False)
+
+        if self.omni:
+            self.omni_path = storage.get('omni_path', '0:0:0')
+            self.omni_address = storage.get('omni_address', '')
+            self.omni_host = storage.get('omni_host', 'http://admin1:123@127.0.0.1:19401/')
+            self.omni_balance = storage.get('omni_balance', False)
+            self.omni_property = storage.get('omni_property', '1')
+            self.omni_code = storage.get('omni_code', 'OMNI')
+            self.omni_daemon = RPCHostOmni()
+            self.omni_daemon.set_url(self.omni_host)
+
+            if self.omni_path:
+                address = self.create_hd_address(self.omni_path)
+            else:
+                address = ''
+            if address != self.omni_address:
+                self.save_hd_address(address, self.omni_path)
+                self.storage.put('omni_address', address)
+                if self.omni_address in self.receiving_addresses:
+                    self.receiving_addresses.remove(self.omni_address)
+                self.omni_address = address
+            self.add_receiving_address(address)
+
+    def add_addr_id(self, address, id):
+        if address in self.addr_ids:
+            return
+        self.addr_ids[address] = id
+        self.storage.put('addr_ids', self.addr_ids)
+
+    def get_addr_id(self, address):
+        if not address in self.addr_ids:
+            return None
+        return self.addr_ids[address]
+
+
+    def add_receiving_address(self, address):
+        if not bitcoin.is_address(address):
+            return
+        if address in self.receiving_addresses:
+            return
+        self.receiving_addresses.append(address)
+        self.add_address(address)
+        self.save_addresses()
+        self.storage.write()
+        return
+
     def has_seed(self):
         return self.keystore.has_seed()
 
@@ -1622,6 +1674,83 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def get_receiving_addresses(self):
         return self.receiving_addresses
+
+    # FUNCTIONS SIMILAR TO SET/GET LABEL, BUT TO SAVE PATH FOR HD-KEY FROM JACKHAMMER
+    def set_hdpath(self, address, path = None):
+        changed = False
+        old_path = self.hd_paths.get(address)
+        if path:
+            path = path.replace("\n", " ")
+            if old_path != path:
+                self.hd_paths[address] = path
+                changed = True
+        else:
+            if old_path:
+                self.hd_paths.pop(address)
+                changed = True
+
+        if changed:
+            run_hook('set_hdpath', self, address, path)
+            self.storage.put('hd_paths', self.hd_paths)
+
+        return changed
+
+    def get_hdpath(self, address):
+        return self.hd_paths.get(address, '')
+
+    # omni
+    def omni_sethost(self, daemon_url):
+        self.omni_host = daemon_url
+        self.storage.put('omni_host', daemon_url)
+        self.omni_daemon.set_url(daemon_url)
+
+    def omni_getname(self, property_id):
+        try:
+            prop = self.omni_daemon.getProperty(property_id)
+            res = prop['result']
+            name = res['name']
+        except:
+            name = "token_%d" % property_id
+        return name
+
+    def omni_addr_balance(self, domain):
+        total = Decimal(0)
+        for addr in domain:
+            try:
+                val = self.omni_daemon.getBalance(addr, int(self.omni_property))
+                res = val['result']
+                total += Decimal(res['balance'])
+            except:
+                pass
+        return total
+
+    def omni_getbalance(self, domain=None):
+        if domain is None:
+            domain = self.get_addresses()
+
+        name = self.omni_getname(int(self.omni_property))
+        total = self.omni_addr_balance(domain)
+        return str(total) + " " + name
+
+    def omni_getamount(self, rawtx):
+
+        if rawtx is None:
+            self.parent.show_error(_('Error decoding OMNI amount. RawTx is empty'))
+            return ''
+
+        amount = Decimal(0)
+        try:
+            val = self.omni_daemon.decodeTransaction(rawtx)
+            if val['error']:
+                self.parent.show_error(_('Error decoding OMNI amount: ' + val['error']))
+
+            res = val['result']
+            amount = Decimal(res['amount'])
+            name = self.omni_getname(res['propertyid'])
+        except Exception as e:
+            name = self.omni_getname(int(self.omni_property))
+        return str(amount) + " " + name
+
 
     def get_change_addresses(self):
         return self.change_addresses
@@ -1683,6 +1812,22 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.add_address(address)
         return address
 
+    def save_hd_address(self, address, path):
+        if address not in self.receiving_addresses:
+            self.add_address(address)
+            self.set_hdpath(address, path)
+            self.save_addresses()
+
+    def create_hd_address(self, path):
+        assert type(path) is str
+
+        hd_path = tuple(map(int, path.split(":")))
+        assert len(hd_path) > 0
+
+        x = self.derive_pubkeys(False, hd_path)
+        address = self.pubkeys_to_address(x)
+        return address
+
     def create_new_hd_address(self, path, save):
         assert type(path) is str
 
@@ -1718,9 +1863,10 @@ class Deterministic_Wallet(Abstract_Wallet):
     def synchronize(self):
         with self.lock:
             if self.is_deterministic():
-                # Jackhammer: do not create regular addresses
-                # self.synchronize_sequence(False)
-                self.synchronize_sequence(True)
+                # OMNI master: do not create regular addresses
+                if not self.omni:
+                    self.synchronize_sequence(False)
+                    self.synchronize_sequence(True)
             else:
                 if len(self.receiving_addresses) != len(self.keystore.keypairs):
                     pubkeys = self.keystore.keypairs.keys()
@@ -1784,10 +1930,11 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
         if not for_change:
             # Fix for Jackhammer
             path = self.get_hdpath(address)
-            assert path != ''
+            # fix for combo JH + Standard
+            if path != '':
 
-            derivation = tuple(map(int, path.split(":")))
-            assert len(derivation) > 0
+                derivation = tuple(map(int, path.split(":")))
+                assert len(derivation) > 0
 
 
         x_pubkey = self.keystore.get_xpubkey(for_change, derivation)
@@ -1888,10 +2035,9 @@ class Multisig_Wallet(Deterministic_Wallet):
         if not for_change:
             # Fix for Jackhammer
             path = self.get_hdpath(address)
-            assert path != ''
-
-            derivation = tuple(map(int, path.split(":")))
-            assert len(derivation) > 0
+            if path != '':
+                derivation = tuple(map(int, path.split(":")))
+                assert len(derivation) > 0
 
         # x_pubkeys are not sorted here because it would be too slow
         # they are sorted in transaction.get_sorted_pubkeys
@@ -1903,7 +2049,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         txin['num_sig'] = self.m
 
 
-wallet_types = ['standard', 'multisig', 'imported']
+wallet_types = ['standard', 'multisig', 'imported', 'master']
 
 def register_wallet_type(category):
     wallet_types.append(category)
