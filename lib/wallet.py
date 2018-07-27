@@ -1654,7 +1654,6 @@ class Deterministic_Wallet(Abstract_Wallet):
             return None
         return self.addr_ids[address]
 
-
     def add_receiving_address(self, address):
         if not bitcoin.is_address(address):
             return

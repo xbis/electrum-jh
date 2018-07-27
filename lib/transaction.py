@@ -598,6 +598,19 @@ class Transaction:
         self.version = d['version']
         return d
 
+    # added 18/07/18 for tx deserialization
+    def as_dictionary(self):
+        if self.raw is None:
+            self.raw = self.serialize()
+        d = deserialize(self.raw)
+        out = {
+            'inputs': d['inputs'],
+            'outputs': d['outputs'],
+            'locktime': d['lockTime'],
+            'version': d['version'],
+        }
+        return out
+
     @classmethod
     def from_io(klass, inputs, outputs, locktime=0):
         self = klass(None)

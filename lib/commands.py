@@ -251,8 +251,8 @@ class Commands:
 
         outputs = [(TYPE_ADDRESS, x['address'], int(x['value'])) for x in outputs]
         tx = Transaction.from_io(inputs, outputs, locktime=locktime)
-        #tx.sign(keypairs)
-        return tx.serialize()     #as_dict()
+        # tx.sign(keypairs)
+        return tx.serialize()     # as_dict()
 
     @command('wp')
     def signtransaction(self, tx, privkey=None, password=None):
@@ -268,11 +268,13 @@ class Commands:
             self.wallet.sign_transaction(tx, password)
         return tx.as_dict()
 
+    # updated 18/07/18 for tx deserialization
     @command('')
     def deserialize(self, tx):
         """Deserialize a serialized transaction"""
         tx = Transaction(tx)
-        return tx.deserialize()
+        # return tx.deserialize()
+        return tx.as_dictionary()
 
     @command('n')
     def broadcast(self, tx, timeout=30):
@@ -579,6 +581,25 @@ class Commands:
             else:
                 raise BaseException("Unknown transaction")
         return tx.as_dict()
+
+    # added 18/06/27 for tx status checking
+    @command('wn')
+    def gettxstatus(self, txid):
+        """Retrieve a transaction. """
+        if self.wallet and txid in self.wallet.transactions:
+            #tx = self.wallet.transactions[txid]
+            height, conf, timestamp = self.wallet.get_tx_height(txid)
+        else:
+            try:
+                raw = self.network.synchronous_get(('blockchain.transaction.get', [txid]))
+                height, conf = 0, 0
+            except BaseException as e:
+                height, conf = -1, -1
+        out = {
+            'height': height,
+            'conf': conf,
+        }
+        return out
 
     @command('')
     def encrypt(self, pubkey, message):

@@ -1,5 +1,34 @@
 # docker-electrum-daemon
 
+## config:
+* 3 config files: /opt/btc-deposit/.electrum/regtest/config
+* {
+    "config_version": 2,
+    "rpcpassword": "password",
+    "rpcport": 23000,
+    "rpcuser": "user",
+    "rpchost": "0.0.0.0",
+    "server": "172.17.0.2:19502:s"
+}
+
+## use:
+### build docker image
+make
+### start daemons
+* make run
+* make run_hot
+* make run_cold
+### load wallets
+* make load
+* make load_hot
+* make load_cold
+### stop daemons
+* make stop
+* make stop_hot
+* make stop_cold
+
+## below - original readme
+
 [![](https://img.shields.io/docker/build/osminogin/electrum-daemon.svg)](https://hub.docker.com/r/osminogin/electrum-daemon/builds/) [![](https://images.microbadger.com/badges/version/osminogin/electrum-daemon.svg)](https://microbadger.com/images/osminogin/electrum-daemon) [![](https://images.microbadger.com/badges/commit/osminogin/electrum-daemon.svg)](https://microbadger.com/images/osminogin/electrum-daemon) [![](https://img.shields.io/docker/stars/osminogin/electrum-daemon.svg)](https://hub.docker.com/r/osminogin/electrum-daemon) [![](https://images.microbadger.com/badges/image/osminogin/electrum-daemon.svg)](https://microbadger.com/images/osminogin/electrum-daemon) [![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey.svg)](https://opensource.org/licenses/MIT)
 
 
