@@ -1585,8 +1585,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if use_rbf:
                 tx.set_rbf(True)
 
-            if fee < self.wallet.relayfee() * tx.estimated_size() / 1000 :
-                self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
+            req_fee = self.wallet.relayfee() * tx.estimated_size() / 1000
+            if fee < req_fee:
+                self.show_error(
+                    _("This transaction requires a higher fee, or it will not be propagated by the network: %d < %d" % (
+                    fee, req_fee)))
                 return
 
             self.show_transaction(tx, tx_desc, self.cryptagio.tx_id, self.cryptagio.tx_body_hash, currency_code)
@@ -1689,8 +1692,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if use_rbf:
             tx.set_rbf(True)
 
-        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000:
-            self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
+        req_fee = self.wallet.relayfee() * tx.estimated_size() / 1000
+        if fee < req_fee:
+            self.show_error(
+                _("This transaction requires a higher fee, or it will not be propagated by the network: %d < %d" % (fee, req_fee)))
             return
 
         self.show_transaction(tx, tx_id, tx_id, None, self.wallet.omni_code)  # tx_hash
@@ -1722,8 +1727,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if use_rbf:
             tx.set_rbf(True)
 
-        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000:
-            self.show_error(_("This transaction requires a higher fee, or it will not be propagated by the network"))
+        req_fee = self.wallet.relayfee() * tx.estimated_size() / 1000
+        if fee < req_fee:
+            self.show_error(
+                _("This transaction requires a higher fee, or it will not be propagated by the network: %d < %d" % (fee, req_fee)))
             return
 
         if preview:
