@@ -269,9 +269,10 @@ class WithdrawalsList(MyTreeWidget):
             if use_rbf:
                 tx.set_rbf(True)
 
-            if fee < self.wallet.relayfee() * tx.estimated_size() / 1000:
+            req_fee = self.wallet.relayfee() * tx.estimated_size() / 1000
+            if fee < req_fee:
                 self.parent.show_error(
-                    _("This transaction requires a higher fee, or it will not be propagated by the network"))
+                    _("This transaction requires a higher fee, or it will not be propagated by the network: %d <=> %d" % (fee, req_fee)))
                 return
 
             tx_id = None
