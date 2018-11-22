@@ -1555,6 +1555,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     return
 
             fee_estimator = self.get_send_fee_estimator()
+            if fee_estimator is None:
+                fee_estimator = partial(
+                    simple_config.SimpleConfig.estimate_fee_for_feerate, self.wallet.relayfee())
+
             coins = self.get_coins()
 
             max_fee_satoshi = int(self.cryptagio.max_fee_amount * pow(10, 8))
@@ -1656,6 +1660,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             coins.append(x)
 
         fee_estimator = self.get_send_fee_estimator()
+        if fee_estimator is None:
+            fee_estimator = partial(
+                simple_config.SimpleConfig.estimate_fee_for_feerate, self.wallet.relayfee())
+
         max_fee_satoshi = int(Decimal(max_fee) * pow(10, 8))
         fee = None
         while (not fee) or (max_fee_satoshi and fee > max_fee_satoshi):
