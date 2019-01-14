@@ -124,7 +124,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tx_notifications = []
         self.tl_windows = []
         self.tx_external_keypairs = {}
-        #self.load_wallet(wallet)
+        # self.load_wallet(wallet)
         self.wallet = wallet
 
         self.create_status_bar()
@@ -1075,28 +1075,47 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(self.from_list, 3, 1, 1, -1)
         self.set_pay_from([])
 
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
+            msg = _('Transaction currency (default is BTC)') + '\n\n' \
+                  + _(
+                'Currency could be choosen from [BTC, {OMNI\CurrencyCode}]')
+            currency_label = HelpLabel(_('Currency'), msg)
+            grid.addWidget(currency_label, 4, 0)
+
+            currencies = ["BTC", self.wallet.omni_code]
+            self.cur_combo = QComboBox()
+            self.cur_combo.addItems(currencies)
+            self.cur_combo.setCurrentIndex(0)
+            self.cur_combo.setFixedWidth(self.amount_e.width())
+            grid.addWidget(self.cur_combo, 4, 1)
+            self.currency_label = QLineEdit('')
+            self.currency_label.setReadOnly(1)
+            self.currency_label.setFocusPolicy(Qt.NoFocus)
+            self.currency_label.hide()
+            grid.addWidget(self.currency_label, 4, 1)
+
         msg = _('Amount to be sent.') + '\n\n' \
               + _('The amount will be displayed in red if you do not have enough funds in your wallet.') + ' ' \
               + _(
             'Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') + '\n\n' \
               + _('Keyboard shortcut: type "!" to send all your coins.')
         amount_label = HelpLabel(_('Amount'), msg)
-        grid.addWidget(amount_label, 4, 0)
-        grid.addWidget(self.amount_e, 4, 1)
+        grid.addWidget(amount_label, 5, 0)
+        grid.addWidget(self.amount_e, 5, 1)
 
         self.fiat_send_e = AmountEdit(self.fx.get_currency if self.fx else '')
         if not self.fx or not self.fx.is_enabled():
             self.fiat_send_e.setVisible(False)
-        grid.addWidget(self.fiat_send_e, 4, 2)
+        grid.addWidget(self.fiat_send_e, 5, 2)
         self.amount_e.frozen.connect(
             lambda: self.fiat_send_e.setFrozen(self.amount_e.isReadOnly()))
 
         self.max_button = EnterButton(_("Max"), self.spend_max)
         self.max_button.setFixedWidth(140)
-        grid.addWidget(self.max_button, 4, 3)
+        grid.addWidget(self.max_button, 5, 3)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
-        grid.addLayout(hbox, 4, 4)
+        grid.addLayout(hbox, 5, 4)
 
         msg = _(
             'Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n' \
@@ -1175,7 +1194,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox_feelabel = QVBoxLayout()
         vbox_feelabel.addWidget(self.fee_e_label)
         vbox_feelabel.addStretch(1)
-        grid.addLayout(vbox_feelabel, 5, 0)
+        grid.addLayout(vbox_feelabel, 6, 0)
 
         self.fee_adv_controls = QWidget()
         hbox = QHBoxLayout(self.fee_adv_controls)
@@ -1190,7 +1209,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox_feecontrol.addWidget(self.fee_adv_controls)
         vbox_feecontrol.addWidget(self.fee_slider)
 
-        grid.addLayout(vbox_feecontrol, 5, 1, 1, -1)
+        grid.addLayout(vbox_feecontrol, 6, 1, 1, -1)
 
         if not self.config.get('show_fee', False):
             self.fee_adv_controls.setVisible(False)
@@ -1207,7 +1226,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.send_button)
         buttons.addWidget(self.cryptagio_button)
-        grid.addLayout(buttons, 6, 1, 1, 3)
+        grid.addLayout(buttons, 7, 1, 1, 3)
 
         self.amount_e.shortcut.connect(self.spend_max)
         self.payto_e.textChanged.connect(self.update_fee)
@@ -1466,6 +1485,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         label = self.message_e.text()
 
+        currency = "BTC"
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
+            index = self.cur_combo.currentIndex()
+            if index != 0:
+                currency = self.wallet.omni_code
+
         if self.payment_request:
             outputs = self.payment_request.get_outputs()
         else:
@@ -1501,7 +1526,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         fee_estimator = self.get_send_fee_estimator()
         coins = self.get_coins()
-        return outputs, fee_estimator, label, coins
+        return outputs, fee_estimator, label, coins, currency
 
     def do_preview(self):
         self.do_send(preview=True)
@@ -1645,6 +1670,68 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         return hex_tx  #[coins, outputs]
 
+    def build_omni_tx(self, addr, amount, max_fee):
+
+        omni_balance = self.wallet.omni_addr_balance([self.wallet.omni_address])
+        if omni_balance == 0:
+            self.show_message(_('Income OMNI not found'))
+            return
+        if omni_balance < amount:
+            self.show_message(_('Unsufficient OMNI funds'))
+            return
+
+        fee_estimator = self.get_send_fee_estimator()
+        if fee_estimator is None:
+            fee_estimator = partial(
+                simple_config.SimpleConfig.estimate_fee_for_feerate, self.wallet.relayfee())
+
+        utxos = self.wallet.get_addr_utxo(self.wallet.omni_address)
+        coins = []
+        for x in utxos.values():
+            self.wallet.add_input_info(x)
+            coins.append(x)
+
+        tx_hex = self.get_omni_tx(addr, amount, 0, coins)
+        if tx_hex is None:
+            self.show_error(_("Error in building OMNI flush transaction"))
+            return
+
+        tx = Transaction(tx_hex)
+        tx.deserialize()
+
+        fee = None
+
+        max_fee_satoshi = int(max_fee * pow(10, 8))
+        while (not fee) or (fee > max_fee_satoshi):
+
+            if fee and fee > max_fee_satoshi:
+                fee_estimator = max_fee_satoshi
+            try:
+                tx = self.wallet.make_unsigned_transaction(
+                    coins, tx.outputs(), self.config, fixed_fee=fee_estimator)
+            except NotEnoughFunds:
+                self.show_error(_("Insufficient funds"))
+                return
+            except BaseException as e:
+                traceback.print_exc(file=sys.stdout)
+                self.show_message(str(e))
+                return
+
+            fee = tx.get_fee()
+
+        # amount = tx.output_value() if self.is_max else sum(map(lambda x: x[2], outputs))
+
+        use_rbf = self.config.get('use_rbf', True)
+        if use_rbf:
+            tx.set_rbf(True)
+
+        if fee < self.wallet.relayfee() * tx.estimated_size() / 1000:
+            self.show_error(_("This transaction requires a higher fee, "
+                                     "or it will not be propagated by the network"))
+            return
+
+        return tx
+
 
     def build_tx(self, addr, amount, max_fee, tx_id):
 
@@ -1703,15 +1790,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_send(self, preview=False):
         if run_hook('abort_send', self):
             return
+
+        # hardcoded BTC fee max
+        MAX_FEE_BTC = 0.0001
+        max_fee = Decimal(MAX_FEE_BTC)
+
         r = self.read_send_tab()
         if not r:
             return
-        outputs, fee_estimator, tx_desc, coins = r
+        outputs, fee_estimator, tx_desc, coins, currency = r
         try:
             is_sweep = bool(self.tx_external_keypairs)
-            tx = self.wallet.make_unsigned_transaction(
-                coins, outputs, self.config, fixed_fee=fee_estimator,
-                is_sweep=is_sweep)
+            if currency == "BTC":
+                tx = self.wallet.make_unsigned_transaction(
+                    coins, outputs, self.config, fixed_fee=fee_estimator,
+                    is_sweep=is_sweep)
+            else:
+                if len(outputs) != 1:
+                    self.show_message(_('unexpected outputs'))
+                    return
+                addr = outputs[0][1]
+                p = pow(10, self.decimal_point)
+                amount = int(outputs[0][2] / p)
+                tx = self.build_omni_tx(addr, amount, max_fee)
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return
