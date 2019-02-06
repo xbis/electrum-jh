@@ -67,6 +67,8 @@ from .rpc import RPCHostOmni
 
 from decimal import *
 
+from binascii import hexlify
+
 TX_STATUS = [
     _('Replaceable'),
     _('Unconfirmed parent'),
@@ -1622,7 +1624,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.omni                  = storage.get('omni', False)
 
         if self.omni:
-            self.omni_path = storage.get('omni_path', '0:0:0')
+            self.omni_path = storage.get('omni_path', '')
             self.omni_address = storage.get('omni_address', '')
             self.omni_host = storage.get('omni_host', 'http://admin1:123@127.0.0.1:19401/')
             self.omni_balance = storage.get('omni_balance', False)
@@ -1634,14 +1636,15 @@ class Deterministic_Wallet(Abstract_Wallet):
             if self.omni_path:
                 address = self.create_hd_address(self.omni_path)
             else:
-                address = ''
+                address = self.create_main_hd_address()
             if address != self.omni_address:
                 self.save_hd_address(address, self.omni_path)
                 self.storage.put('omni_address', address)
                 if self.omni_address in self.receiving_addresses:
                     self.receiving_addresses.remove(self.omni_address)
                 self.omni_address = address
-            self.add_receiving_address(address)
+            if address != '':
+                self.add_receiving_address(address)
 
     def add_addr_id(self, address, id):
         if address in self.addr_ids:
@@ -1848,6 +1851,14 @@ class Deterministic_Wallet(Abstract_Wallet):
 
         return address
 
+    def create_main_hd_address(self):
+
+        x = self.keystore.get_master_public_key()
+        _, _, _, _, _, pub = bitcoin.deserialize_xpub(x)
+        pub_hex = hexlify(bytearray(pub)).decode('ascii')
+        address = self.pubkeys_to_address(pub_hex)
+        return address
+
     def synchronize_sequence(self, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
         while True:
@@ -1864,9 +1875,9 @@ class Deterministic_Wallet(Abstract_Wallet):
         with self.lock:
             if self.is_deterministic():
                 # OMNI master: do not create regular addresses
-                if not self.omni:
-                    self.synchronize_sequence(False)
-                    self.synchronize_sequence(True)
+                # if not self.omni:
+                self.synchronize_sequence(False)
+                self.synchronize_sequence(True)
             else:
                 if len(self.receiving_addresses) != len(self.keystore.keypairs):
                     pubkeys = self.keystore.keypairs.keys()

@@ -3397,7 +3397,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # omni_widgets
         omni_path_label = HelpLabel(_('Master Path') + ':',
                                         _('HD Path Extension for withdraw Master key'))
-        omni_path_e = QLineEdit(self.wallet.storage.get('omni_path', '0:0:0'))
+        omni_path_e = QLineEdit(self.wallet.storage.get('omni_path', ''))
 
         def on_path_edit():
             #self.config.set_key('omni_property', str(omni_property_e.text()), True)
@@ -3410,7 +3410,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         omni_address_label = HelpLabel(_('Master Address') + ':',
                                         _('HD Address according to path'))
         omni_address_e = QLineEdit(self.wallet.storage.get('omni_address', ''))
-        # omni_address_e.setEnabled(False)
+        omni_address_e.setEnabled(False)
         omni_widgets.append((omni_address_label, omni_address_e))
 
 
