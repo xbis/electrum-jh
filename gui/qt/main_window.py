@@ -737,7 +737,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     text += " [%s unconfirmed]" % (self.format_amount(u, True).strip())
                 if x:
                     text += " [%s unmatured]" % (self.format_amount(x, True).strip())
-                if hasattr(self.wallet, 'omni') and self.wallet.omni_balance:
+                if hasattr(self.wallet, 'omni') and self.wallet.omni and self.wallet.omni_balance:
                     omni_amount = self.wallet.omni_getbalance()
                     text += " [%s]" % (omni_amount)
 
@@ -3395,74 +3395,75 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         cryptagio_widgets.append((cryptagio_key_label, cryptagio_key_e))
 
         # omni_widgets
-        omni_path_label = HelpLabel(_('Master Path') + ':',
-                                        _('HD Path Extension for withdraw Master key'))
-        omni_path_e = QLineEdit(self.wallet.storage.get('omni_path', ''))
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
+            omni_path_label = HelpLabel(_('Master Path') + ':',
+                                            _('HD Path Extension for withdraw Master key'))
+            omni_path_e = QLineEdit(self.wallet.storage.get('omni_path', ''))
 
-        def on_path_edit():
-            #self.config.set_key('omni_property', str(omni_property_e.text()), True)
-            self.wallet.storage.put('omni_path', str(omni_path_e.text()))
-            self.wallet.omni_path = str(omni_path_e.text())
+            def on_path_edit():
+                #self.config.set_key('omni_property', str(omni_property_e.text()), True)
+                self.wallet.storage.put('omni_path', str(omni_path_e.text()))
+                self.wallet.omni_path = str(omni_path_e.text())
 
-        omni_path_e.editingFinished.connect(on_path_edit)
-        omni_widgets.append((omni_path_label, omni_path_e))
+            omni_path_e.editingFinished.connect(on_path_edit)
+            omni_widgets.append((omni_path_label, omni_path_e))
 
-        omni_address_label = HelpLabel(_('Master Address') + ':',
-                                        _('HD Address according to path'))
-        omni_address_e = QLineEdit(self.wallet.storage.get('omni_address', ''))
-        omni_address_e.setEnabled(False)
-        omni_widgets.append((omni_address_label, omni_address_e))
+            omni_address_label = HelpLabel(_('Master Address') + ':',
+                                            _('HD Address according to path'))
+            omni_address_e = QLineEdit(self.wallet.storage.get('omni_address', ''))
+            omni_address_e.setEnabled(False)
+            omni_widgets.append((omni_address_label, omni_address_e))
 
 
-        omni_host_label = HelpLabel(_('Daemon Url') + ':', _('Address and credentials of OMNI node\n' +
-                                                                  'format: \n' +
-                                                                  'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}/'))
-        omni_host_e = QLineEdit(self.wallet.storage.get('omni_host', 'http://admin1:123@127.0.0.1:19401/'))
-        omni_host_e.setFixedWidth(300)
+            omni_host_label = HelpLabel(_('Daemon Url') + ':', _('Address and credentials of OMNI node\n' +
+                                                                      'format: \n' +
+                                                                      'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}/'))
+            omni_host_e = QLineEdit(self.wallet.storage.get('omni_host', 'http://admin1:123@127.0.0.1:19401/'))
+            omni_host_e.setFixedWidth(300)
 
-        def on_omni_host_edit():
-            self.wallet.omni_sethost(str(omni_host_e.text()))
+            def on_omni_host_edit():
+                self.wallet.omni_sethost(str(omni_host_e.text()))
 
-        omni_host_e.editingFinished.connect(on_omni_host_edit)
-        omni_widgets.append((omni_host_label, omni_host_e))
+            omni_host_e.editingFinished.connect(on_omni_host_edit)
+            omni_widgets.append((omni_host_label, omni_host_e))
 
-        omni_property_label = HelpLabel(_('Property ID') + ':',
-                                        _('List of registered OMNI Property IDs:' + '\n' +
-                                          'https://omniexplorer.info/search/1'))
-        omni_property_e = QLineEdit(self.wallet.storage.get('omni_property', '1'))
+            omni_property_label = HelpLabel(_('Property ID') + ':',
+                                            _('List of registered OMNI Property IDs:' + '\n' +
+                                              'https://omniexplorer.info/search/1'))
+            omni_property_e = QLineEdit(self.wallet.storage.get('omni_property', '1'))
 
-        def on_property_edit():
-            #self.config.set_key('omni_property', str(omni_property_e.text()), True)
-            self.wallet.storage.put('omni_property', str(omni_property_e.text()))
-            self.wallet.omni_property = str(omni_property_e.text())
+            def on_property_edit():
+                #self.config.set_key('omni_property', str(omni_property_e.text()), True)
+                self.wallet.storage.put('omni_property', str(omni_property_e.text()))
+                self.wallet.omni_property = str(omni_property_e.text())
 
-        omni_property_e.editingFinished.connect(on_property_edit)
-        omni_widgets.append((omni_property_label, omni_property_e))
+            omni_property_e.editingFinished.connect(on_property_edit)
+            omni_widgets.append((omni_property_label, omni_property_e))
 
-        omni_code_label = HelpLabel(_('Currency code') + ':',
-                                        _('Currency code for Cryptagio requests'))
-        omni_code_e = QLineEdit(self.wallet.storage.get('omni_code', 'OMNI'))
+            omni_code_label = HelpLabel(_('Currency code') + ':',
+                                            _('Currency code for Cryptagio requests'))
+            omni_code_e = QLineEdit(self.wallet.storage.get('omni_code', 'OMNI'))
 
-        def on_code_edit():
-            #self.config.set_key('omni_property', str(omni_property_e.text()), True)
-            self.wallet.storage.put('omni_code', str(omni_code_e.text()))
-            self.wallet.omni_code = str(omni_code_e.text())
+            def on_code_edit():
+                #self.config.set_key('omni_property', str(omni_property_e.text()), True)
+                self.wallet.storage.put('omni_code', str(omni_code_e.text()))
+                self.wallet.omni_code = str(omni_code_e.text())
 
-        omni_code_e.editingFinished.connect(on_code_edit)
-        omni_widgets.append((omni_code_label, omni_code_e))
+            omni_code_e.editingFinished.connect(on_code_edit)
+            omni_widgets.append((omni_code_label, omni_code_e))
 
-        def on_showbalance(x):
-            showbalance_result = x == Qt.Checked
-            if self.wallet.omni_balance != showbalance_result:
-                self.wallet.omni_balance = showbalance_result
-                self.wallet.storage.put('omni_balance', self.wallet.omni_balance)
+            def on_showbalance(x):
+                showbalance_result = x == Qt.Checked
+                if self.wallet.omni_balance != showbalance_result:
+                    self.wallet.omni_balance = showbalance_result
+                    self.wallet.storage.put('omni_balance', self.wallet.omni_balance)
 
-        omni_balance_cb = QCheckBox(_('Show balance'))
-        omni_balance_cb.setChecked(self.wallet.omni_balance)
-        omni_balance_cb.stateChanged.connect(on_showbalance)
-        omni_balance_cb.setToolTip(
-            _('Check to display OMNI balance '))
-        omni_widgets.append((omni_balance_cb, None))
+            omni_balance_cb = QCheckBox(_('Show balance'))
+            omni_balance_cb.setChecked(self.wallet.omni_balance)
+            omni_balance_cb.stateChanged.connect(on_showbalance)
+            omni_balance_cb.setToolTip(
+                _('Check to display OMNI balance '))
+            omni_widgets.append((omni_balance_cb, None))
 
         tabs_info = [
             (fee_widgets, _('Fees')),
@@ -3471,8 +3472,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             (fiat_widgets, _('Fiat')),
             (id_widgets, _('Identity')),
             (cryptagio_widgets, _('Cryptagio')),
-            (omni_widgets, _('OMNI')),
         ]
+        if hasattr(self.wallet, 'omni') and self.wallet.omni:
+            tabs_info.append((omni_widgets, _('OMNI')))
+
         for widgets, name in tabs_info:
             tab = QWidget()
             grid = QGridLayout(tab)

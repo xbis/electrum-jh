@@ -226,12 +226,12 @@ class Xpub:
     def derive_pubkey(self, for_change, n):
         xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
+            xpub = bip32_public_derivation(self.xpub, "", "/%d" % for_change)
             if for_change:
-                xpub = bip32_public_derivation(self.xpub, "", "/%d"%for_change)
                 self.xpub_change = xpub
             else:
                 # JH FIX: do not build derivation for receive address
-                xpub = self.xpub
+                # xpub = self.xpub
                 self.xpub_receive = xpub
 
         # Fix to allow depth

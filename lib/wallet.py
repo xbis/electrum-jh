@@ -184,6 +184,19 @@ class Abstract_Wallet(PrintError):
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
         self.ignored_addresses     = storage.get('ignored_addresses', [])
 
+        # omni
+        self.omni                  = storage.get('omni', False)
+
+        if self.omni:
+            self.omni_address = storage.get('omni_address', '')
+            self.omni_host = storage.get('omni_host', 'http://admin1:123@127.0.0.1:19401/')
+            self.omni_balance = storage.get('omni_balance', False)
+            self.omni_property = storage.get('omni_property', '1')
+            self.omni_code = storage.get('omni_code', 'OMNI')
+            self.omni_daemon = RPCHostOmni()
+            self.omni_daemon.set_url(self.omni_host)
+
+
         self.load_keystore()
         self.load_addresses()
         self.load_transactions()
@@ -1625,13 +1638,6 @@ class Deterministic_Wallet(Abstract_Wallet):
 
         if self.omni:
             self.omni_path = storage.get('omni_path', '')
-            self.omni_address = storage.get('omni_address', '')
-            self.omni_host = storage.get('omni_host', 'http://admin1:123@127.0.0.1:19401/')
-            self.omni_balance = storage.get('omni_balance', False)
-            self.omni_property = storage.get('omni_property', '1')
-            self.omni_code = storage.get('omni_code', 'OMNI')
-            self.omni_daemon = RPCHostOmni()
-            self.omni_daemon.set_url(self.omni_host)
 
             if self.omni_path:
                 address = self.create_hd_address(self.omni_path)
