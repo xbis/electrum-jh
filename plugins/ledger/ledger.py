@@ -363,7 +363,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 if len(tx.outputs()) > 2:
                     self.give_error("Transaction with more than 2 outputs not supported")
             for _type, address, amount in tx.outputs():
-                assert _type == TYPE_ADDRESS
+                if _type != TYPE_ADDRESS:
+                    continue
                 info = tx.output_info.get(address)
                 if (info is not None) and (len(tx.outputs()) != 1):
                     index, xpubs, m = info
