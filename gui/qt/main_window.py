@@ -1686,6 +1686,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 simple_config.SimpleConfig.estimate_fee_for_feerate, self.wallet.relayfee())
 
         utxos = self.wallet.get_addr_utxo(self.wallet.omni_address)
+        if len(utxos) == 0:
+            self.show_error(_('Absent unspent BTC for OMNI address ' + self.wallet.omni_address))
+            return
+        
         coins = []
         for x in utxos.values():
             self.wallet.add_input_info(x)
@@ -1693,7 +1697,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         tx_hex = self.get_omni_tx(addr, amount, 0, coins)
         if tx_hex is None:
-            self.show_error(_("Error in building OMNI flush transaction"))
+            self.show_error(_("Error in building OMNI transaction"))
             return
 
         tx = Transaction(tx_hex)
@@ -1819,6 +1823,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
+            return
+
+        if tx is None:
+            self.show_message(_("Error in tx build"))
             return
 
         amount = tx.output_value() if self.is_max else sum(map(lambda x: x[2], outputs))
