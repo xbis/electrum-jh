@@ -732,14 +732,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 icon = QIcon(":icons/status_lagging.png")
             else:
                 c, u, x = self.wallet.get_balance()
-                text = _("Balance") + ": %s " % (self.format_amount_and_units(c))
+                text = _("Balance") + u": %s " % (self.format_amount_and_units(c))
                 if u:
-                    text += " [%s unconfirmed]" % (self.format_amount(u, True).strip())
+                    text += u" [%s unconfirmed]" % (self.format_amount(u, True).strip())
                 if x:
-                    text += " [%s unmatured]" % (self.format_amount(x, True).strip())
+                    text += u" [%s unmatured]" % (self.format_amount(x, True).strip())
                 if hasattr(self.wallet, 'omni') and self.wallet.omni and self.wallet.omni_balance:
                     omni_amount = self.wallet.omni_getbalance()
-                    text += " [%s]" % (omni_amount)
+                    text += u" [%s]" % (omni_amount)
 
                 # append fiat balance and price
                 if self.fx.is_enabled():
@@ -1464,8 +1464,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                and (self.fee_e.text() or self.fee_e.hasFocus())
 
     def is_send_feerate_frozen(self):
-        return self.feerate_e.isVisible() and self.feerate_e.isModified() \
-               and (self.feerate_e.text() or self.feerate_e.hasFocus())
+        v = self.feerate_e.isVisible()
+        # m = self.feerate_e.isModified()
+        t = self.feerate_e.text()
+        f = self.feerate_e.hasFocus()
+        return v and (t or f)
 
     def get_send_fee_estimator(self):
         if self.is_send_fee_frozen():
@@ -1670,7 +1673,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         return hex_tx  #[coins, outputs]
 
-    def build_omni_tx(self, addr, amount, max_fee):
+    def build_omni_tx(self, addr, amount, max_fee, estimator):
 
         omni_balance = self.wallet.omni_addr_balance([self.wallet.omni_address])
         if omni_balance == 0:
@@ -1680,7 +1683,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_('Unsufficient OMNI funds'))
             return
 
-        fee_estimator = self.get_send_fee_estimator()
+        # fee_estimator = self.get_send_fee_estimator()
+        fee_estimator = estimator
         if fee_estimator is None:
             fee_estimator = partial(
                 simple_config.SimpleConfig.estimate_fee_for_feerate, self.wallet.relayfee())
@@ -1689,7 +1693,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if len(utxos) == 0:
             self.show_error(_('Absent unspent BTC for OMNI address ' + self.wallet.omni_address))
             return
-        
+
         coins = []
         for x in utxos.values():
             self.wallet.add_input_info(x)
@@ -1816,7 +1820,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 addr = outputs[0][1]
                 p = pow(10, self.decimal_point)
                 amount = int(outputs[0][2] / p)
-                tx = self.build_omni_tx(addr, amount, max_fee)
+                tx = self.build_omni_tx(addr, amount, max_fee, fee_estimator)
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return

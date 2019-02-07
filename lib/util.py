@@ -350,16 +350,16 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
         return 'unknown'
     x = int(x)  # Some callers pass Decimal
     scale_factor = pow (10, decimal_point)
-    integer_part = "{:n}".format(int(abs(x) / scale_factor))
+    integer_part = u"{:n}".format(int(abs(x) / scale_factor))
     if x < 0:
         integer_part = '-' + integer_part
     elif is_diff:
         integer_part = '+' + integer_part
     dp = localeconv()['decimal_point']
-    fract_part = ("{:0" + str(decimal_point) + "}").format(abs(x) % scale_factor)
+    fract_part = (u"{:0" + str(decimal_point) + "}").format(abs(x) % scale_factor)
     fract_part = fract_part.rstrip('0')
     if len(fract_part) < num_zeros:
-        fract_part += "0" * (num_zeros - len(fract_part))
+        fract_part += u"0" * (num_zeros - len(fract_part))
     result = integer_part + dp + fract_part
     if whitespaces:
         result += " " * (decimal_point - len(fract_part))

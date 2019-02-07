@@ -188,6 +188,10 @@ class Abstract_Wallet(PrintError):
         self.omni                  = storage.get('omni', False)
 
         if self.omni:
+            if self.use_change:
+                self.use_change = False
+                self.storage.put('use_change', False)
+
             self.omni_address = storage.get('omni_address', '')
             self.omni_host = storage.get('omni_host', 'http://admin1:123@127.0.0.1:19401/')
             self.omni_balance = storage.get('omni_balance', False)
