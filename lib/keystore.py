@@ -254,11 +254,11 @@ class Xpub:
             assert type(i) == int
             i = (i,)
 
-        if for_change:
-            s = ''.join(map(lambda x: bitcoin.int_to_hex(x, MASK_SIZE), (for_change,) + i))
-        else:
-            s = ''.join(map(lambda x: bitcoin.int_to_hex(x, MASK_SIZE), i))
-
+        # if for_change:
+        #     s = ''.join(map(lambda x: bitcoin.int_to_hex(x, MASK_SIZE), (for_change,) + i))
+        # else:
+        #     s = ''.join(map(lambda x: bitcoin.int_to_hex(x, MASK_SIZE), i))
+        s = ''.join(map(lambda x: bitcoin.int_to_hex(x, MASK_SIZE), (for_change,) + i))
         return 'ff' + bh2u(bitcoin.DecodeBase58Check(self.xpub)) + s
 
     @classmethod
